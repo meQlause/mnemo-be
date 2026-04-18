@@ -4,10 +4,11 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     GOOGLE_API_KEY: str = "placeholder"
     GOOGLE_LLM_MODEL: str = "gemini-3-flash-preview"
+    GOOGLE_PARSE_MODEL: str = "gemini-1.5-pro"
     GOOGLE_EMBEDDING_MODEL: str = "gemini-embedding-001"
 
     POSTGRES_HOST: str = "127.0.0.1"
-    POSTGRES_PORT: int = 5432
+    POSTGRES_PORT: int = 8883
     POSTGRES_USER: str = "raguser"
     POSTGRES_PASSWORD: str = "ragpassword"
     POSTGRES_DB: str = "ragdb"

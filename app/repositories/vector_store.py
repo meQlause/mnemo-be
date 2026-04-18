@@ -68,6 +68,19 @@ async def search_notes_semantic(
     window_size: int = 1,
 ) -> List[Tuple[Note, str, float]]:
     try:
+        if not query.strip():
+            # If no query text, perform a standard metadata search
+            stmt = select(Note).where(Note.user_id == user_id)
+            if start_time:
+                stmt = stmt.where(Note.occurrence_time >= start_time)
+            if end_time:
+                stmt = stmt.where(Note.occurrence_time <= end_time)
+            stmt = stmt.order_by(Note.occurrence_time.desc()).limit(limit)
+            
+            result = await session.execute(stmt)
+            notes = result.scalars().all()
+            return [(n, n.content, 0.0) for n in notes]
+
         embeddings_model = get_embeddings()
         query_embedding = embeddings_model.embed_query(query)
 

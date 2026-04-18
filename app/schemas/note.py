@@ -4,6 +4,12 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 
+class EventExtraction(BaseModel):
+    event_date: Optional[str] = Field(None, description="YYYY-MM-DD format")
+    original_expression: Optional[str] = Field(None, description="The exact phrase found")
+    confidence: float = Field(0.0, ge=0.0, le=1.0)
+
+
 class NoteCreate(BaseModel):
     title: str = Field(
         default=None, max_length=255, description="Optional custom title"
@@ -30,6 +36,7 @@ class NoteResponse(BaseModel):
     summary: Optional[str] = None
     tags: List[str] = []
     sentiment: Optional[str] = None
+    occurrence_time: datetime
 
     created_at: datetime
     updated_at: datetime

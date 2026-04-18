@@ -136,3 +136,31 @@ random_note_prompt = PromptTemplate.from_template(
     Output only the raw text formatting. DO NOT output any HTML tags (like <p>, <br>, etc.). Do not include a title.
     """
 )
+
+extract_event_date_prompt = PromptTemplate.from_template(
+    """Extract the main event date from the text.
+
+## Core Rules
+1. Select ONLY the time expression directly tied to the main event/action.
+2. IGNORE time expressions used for background, description, or context.
+3. If multiple candidates exist, choose the one most strongly linked to the main event.
+
+## Reference Date Usage (CRITICAL)
+- The reference date ({reference_date}) is ONLY a base for calculation.
+- NEVER return the reference date as the event date unless the user explicitly says "today".
+- For relative phrases, resolve them STERNLY:
+    - "yesterday" → {reference_date} minus 1 day
+    - "this past week" → {reference_date} minus 7 days (the start of the reflection period)
+    - "last week" → {reference_date} minus 7 days
+    - "last month" → {reference_date} minus 1 month
+
+## Date Inference
+- If ONLY day is mentioned (e.g. "on the 18th"), assume current month and year from reference date.
+- If day + month is mentioned (e.g. "August 18"), assume current year from reference date.
+
+Reference date: {reference_date}
+
+Text:
+{input}
+"""
+)

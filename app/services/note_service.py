@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 import json
 from typing import AsyncGenerator, List
 
@@ -10,6 +11,7 @@ from app.ai.chains.chain import (
     run_chat_chain,
     run_generate_title_chain,
     run_generate_random_note_chain,
+    run_extract_event_date_chain,
 )
 from app.core.config import settings
 from app.models.models import Note
@@ -31,7 +33,12 @@ from app.schemas.note import (
 
 
 async def search_notes(
-    session: AsyncSession, user_id: int, query: str, limit: int = 10
+    session: AsyncSession,
+    user_id: int,
+    query: str,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+    limit: int = 10,
 ) -> List[NoteResponse]:
     matches = await search_notes_semantic(
         session=session,
@@ -39,6 +46,8 @@ async def search_notes(
         user_id=user_id,
         limit=limit,
         threshold=settings.SEMANTIC_THRESHOLD_UI,
+        start_time=start_time,
+        end_time=end_time,
     )
 
     return [NoteResponse.model_validate(m[0]) for m in matches]
@@ -50,15 +59,25 @@ async def create_note(
     yield "data: status: parsing\n\n"
     await asyncio.sleep(0.5)
 
-    yield "data: status: processing\n\n"
-    await asyncio.sleep(0.5)
-
-    note = await add_note_with_chunks(
-        session=session, user_id=user_id, content=request.content, title=request.title
-    )
+    yield "data: status: extracting events\n\n"
+    ref_date = datetime.now().strftime("%Y-%m-%d") # Use current server date as reference
+    extraction = await run_extract_event_date_chain(request.content, ref_date)
+    
+    occurrence_time = None
+    if extraction.get("event_date"):
+        try:
+            occurrence_time = datetime.strptime(extraction["event_date"], "%Y-%m-%d")
+        except ValueError:
+            pass
 
     yield "data: status: saving\n\n"
-    await asyncio.sleep(0.5)
+    note = await add_note_with_chunks(
+        session=session, 
+        user_id=user_id, 
+        content=request.content, 
+        title=request.title,
+        occurrence_time=occurrence_time
+    )
 
     resp = NoteResponse.model_validate(note)
     yield f"data: {resp.model_dump_json()}\n\n"

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -54,10 +55,14 @@ async def list_notes_endpoint(
 @router.get("/search", response_model=List[NoteResponse])
 async def search_notes_endpoint(
     query: str,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return await search_notes(session, current_user.id, query)
+    return await search_notes(
+        session, current_user.id, query, start_time=start_time, end_time=end_time
+    )
 
 
 @router.post("/chat")
