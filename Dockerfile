@@ -17,6 +17,6 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
-EXPOSE 8882
+EXPOSE 8881
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8882", "--reload"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8881", "--reload"]
