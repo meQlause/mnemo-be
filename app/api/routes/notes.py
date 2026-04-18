@@ -26,6 +26,7 @@ from app.services.note_service import (
     search_notes,
     suggest_title,
     update_note,
+    generate_random_note,
 )
 
 router = APIRouter()
@@ -129,3 +130,10 @@ async def save_note_analysis_endpoint(
             status_code=status.HTTP_404_NOT_FOUND, detail="Note not found"
         )
     return note
+
+
+@router.post("/generate-random")
+async def run_generate_random_note_endpoint(
+    _: User = Depends(get_current_user),
+):
+    return StreamingResponse(generate_random_note(), media_type="text/event-stream")

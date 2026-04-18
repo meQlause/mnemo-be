@@ -129,3 +129,10 @@ Note Content: {content}
 
 Output JSON:"""
 )
+
+random_note_prompt = PromptTemplate.from_template(
+    """You are a creative writer. Generate a completely random, interesting, and coherent note consisting of exactly 2 paragraphs.
+    The topic could be anything: science, history, casual thoughts, a short fictional story, or interesting facts.
+    Output only the note text. Do not include a title.
+    """
+)

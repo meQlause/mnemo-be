@@ -9,6 +9,7 @@ from app.ai.chains.chain import (
     run_analyze_chain,
     run_chat_chain,
     run_generate_title_chain,
+    run_generate_random_note_chain,
 )
 from app.core.config import settings
 from app.models.models import Note
@@ -174,3 +175,8 @@ async def save_note_analysis(
     await session.refresh(note)
 
     return NoteResponse.model_validate(note)
+
+
+async def generate_random_note() -> AsyncGenerator[str, None]:
+    async for chunk in run_generate_random_note_chain():
+        yield chunk

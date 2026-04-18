@@ -9,6 +9,7 @@ from app.ai.prompts.note_prompt import (
     rag_followup_prompt,
     rag_initial_prompt,
     title_prompt,
+    random_note_prompt,
 )
 
 
@@ -55,3 +56,13 @@ async def run_chat_chain(
             yield f"data: {chunk}\n\n"
     except Exception as exc:
         yield f"data: Error: {exc}\n\n"
+
+async def run_generate_random_note_chain() -> AsyncGenerator[str, None]:
+    llm = get_llm()
+    chain = random_note_prompt | llm | StrOutputParser()
+    
+    try:
+        async for chunk in chain.astream({}):
+            yield f"data: {chunk}\n\n"
+    except Exception as exc:
+        yield f"data: Error generating text.\n\n"
