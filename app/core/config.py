@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     GOOGLE_API_KEY: str = "placeholder"
     GOOGLE_LLM_MODEL: str = "gemini-3-flash-preview"
-    GOOGLE_PARSE_MODEL: str = "gemini-1.5-pro"
+    GOOGLE_PARSE_MODEL: str = "gemini-2.5-pro"
     GOOGLE_EMBEDDING_MODEL: str = "gemini-embedding-001"
 
     POSTGRES_HOST: str = "127.0.0.1"
@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
+    # Cookie & CSRF Settings
+    REFRESH_TOKEN_COOKIE_NAME: str = "refresh_token"
+    CSRF_TOKEN_COOKIE_NAME: str = "fastapi-csrf-token"
+    SECRET_KEY_CSRF: str = "supersecretkey_please_change_in_production"  
+    COOKIE_SAMESITE: str = "strict"
+    COOKIE_SECURE: bool = False  
 
     @property
     def postgres_dsn(self) -> str:

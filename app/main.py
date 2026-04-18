@@ -1,11 +1,15 @@
 import os
-
-from fastapi import FastAPI
+from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi_csrf_protect import CsrfProtect
+from fastapi_csrf_protect.exceptions import CsrfProtectError
+from pydantic import BaseModel
 
 from app.api.router import api_router
+from app.core.config import settings
 
 app = FastAPI(
     title="RAG Notes API",
@@ -13,13 +17,34 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+class CsrfSettings(BaseModel):
+    secret_key: str = settings.SECRET_KEY_CSRF
+    cookie_samesite: str = settings.COOKIE_SAMESITE
+    cookie_secure: bool = settings.COOKIE_SECURE
+    cookie_key: str = settings.CSRF_TOKEN_COOKIE_NAME
+    cookie_httponly: bool = False
+    header_name: str = "X-CSRF-Token"
+
+@CsrfProtect.load_config
+def get_csrf_config():
+    return CsrfSettings()
+
+@app.exception_handler(CsrfProtectError)
+def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError):
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+
+class DynamicCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin")
+        response = await call_next(request)
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-CSRF-Token"
+        return response
+
+app.add_middleware(DynamicCORSMiddleware)
 
 app.include_router(api_router, prefix="/api/v1")
 
