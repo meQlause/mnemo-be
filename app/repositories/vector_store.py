@@ -24,7 +24,7 @@ async def add_note_with_chunks(
             user_id=user_id,
             title=title,
             content=content,
-            occurrence_time=occurrence_time or datetime.utcnow(),
+            occurrence_time=occurrence_time,
             metadata_=metadata or {},
         )
         session.add(note)
@@ -76,7 +76,7 @@ async def search_notes_semantic(
             if end_time:
                 stmt = stmt.where(Note.occurrence_time <= end_time)
             stmt = stmt.order_by(Note.occurrence_time.desc()).limit(limit)
-            
+
             result = await session.execute(stmt)
             notes = result.scalars().all()
             return [(n, n.content, 0.0) for n in notes]
@@ -113,7 +113,7 @@ async def search_notes_semantic(
         if window_size == 0:
             return [(m[0], m[1], m[2]) for m in matches]
 
-        note_matches = {}  
+        note_matches = {}
         note_objects = {}
         for note, content, dist, idx in matches:
             note_matches.setdefault(note.id, []).append((idx, dist))
@@ -128,7 +128,7 @@ async def search_notes_semantic(
         chunks_result = await session.execute(chunks_stmt)
         all_chunks = chunks_result.scalars().all()
 
-        note_chunks_map = {}  
+        note_chunks_map = {}
         for chunk in all_chunks:
             note_chunks_map.setdefault(chunk.note_id, {})[chunk.chunk_index] = (
                 chunk.chunk_content
@@ -138,7 +138,7 @@ async def search_notes_semantic(
         for note_id, matches_in_note in note_matches.items():
             note = note_objects[note_id]
             needed_indices = set()
-            match_distances = {}  
+            match_distances = {}
             for idx, dist in matches_in_note:
                 for offset in range(-window_size, window_size + 1):
                     needed_indices.add(idx + offset)

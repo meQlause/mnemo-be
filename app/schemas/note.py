@@ -36,7 +36,7 @@ class NoteResponse(BaseModel):
     summary: Optional[str] = None
     tags: List[str] = []
     sentiment: Optional[str] = None
-    occurrence_time: datetime
+    occurrence_time: Optional[datetime] = None
 
     created_at: datetime
     updated_at: datetime

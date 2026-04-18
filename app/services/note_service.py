@@ -13,6 +13,7 @@ from app.ai.chains.chain import (
     run_generate_random_note_chain,
     run_extract_event_date_chain,
 )
+from app.utils.date_utils import get_jakarta_today_str
 from app.core.config import settings
 from app.models.models import Note
 from app.repositories.vector_store import (
@@ -60,9 +61,9 @@ async def create_note(
     await asyncio.sleep(0.5)
 
     yield "data: status: extracting events\n\n"
-    ref_date = datetime.now().strftime("%Y-%m-%d") # Use current server date as reference
+    ref_date = get_jakarta_today_str()
     extraction = await run_extract_event_date_chain(request.content, ref_date)
-    
+
     occurrence_time = None
     if extraction.get("event_date"):
         try:
@@ -72,11 +73,11 @@ async def create_note(
 
     yield "data: status: saving\n\n"
     note = await add_note_with_chunks(
-        session=session, 
-        user_id=user_id, 
-        content=request.content, 
+        session=session,
+        user_id=user_id,
+        content=request.content,
         title=request.title,
-        occurrence_time=occurrence_time
+        occurrence_time=occurrence_time,
     )
 
     resp = NoteResponse.model_validate(note)
@@ -127,9 +128,11 @@ async def chat_with_notes(
     elif prev_context_content:
         # Reuse previous context if current search yields nothing
         current_context_content = prev_context_content
-    
+
     # Logic flags for prompt selection
-    context_to_pass = current_context_content if current_context_content else "No context"
+    context_to_pass = (
+        current_context_content if current_context_content else "No context"
+    )
     is_followup = prev_context_content is not None
 
     yield "data: status: generating response\n\n"
@@ -137,7 +140,7 @@ async def chat_with_notes(
     history_str = "\n".join(
         [f"{m.role.capitalize()}: {m.content}" for m in request.history]
     )
-    
+
     async for chunk in run_chat_chain(
         context=context_to_pass,
         user_input=request.question,

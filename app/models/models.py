@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.date_utils import get_jakarta_now
 from typing import List, Optional
 
 from pgvector.sqlalchemy import Vector
@@ -18,9 +19,9 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_jakarta_now)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=get_jakarta_now, onupdate=get_jakarta_now
     )
 
     notes: Mapped[List["Note"]] = relationship(
@@ -38,12 +39,12 @@ class Note(Base):
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     
-    occurrence_time: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+    occurrence_time: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_jakarta_now)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=get_jakarta_now, onupdate=get_jakarta_now
     )
     
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
