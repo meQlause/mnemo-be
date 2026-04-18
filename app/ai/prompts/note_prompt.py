@@ -13,20 +13,17 @@ The user has asked a question, but NO relevant information was found in their no
 
 ## Output Format (STRICT)
 
-### Answer
 > I don't have enough context in your personal notes to answer this question.
 
 ### Explanation
-- The requested information is not available in the provided notes
-- I am restricted to using only your personal notes
+* The requested information is not available in the provided notes
+* I am restricted to using only your personal notes
 
 ## Conversation History
 {history}
 
 ## Question
 {input}
-
-## Answer
 """
 )
 
@@ -42,7 +39,6 @@ rag_initial_prompt = PromptTemplate.from_template(
 
 ## Output Format (STRICT)
 
-### Answer
 <direct answer based only on context>
 
 ### Key Points
@@ -65,8 +61,6 @@ rag_initial_prompt = PromptTemplate.from_template(
 
 ## Question
 {input}
-
-## Answer
 """
 )
 
@@ -88,7 +82,6 @@ A context has already been established.
 
 ## Output Format (STRICT)
 
-### Answer
 <clear and helpful response>
 
 ### Key Points
@@ -111,8 +104,6 @@ A context has already been established.
 
 ## Question
 {input}
-
-## Answer
 """
 )
 
