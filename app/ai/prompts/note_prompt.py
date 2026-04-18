@@ -10,6 +10,7 @@ Instructions:
 2. Remind them that you are restricted to answering based ONLY on their personal notes.
 3. DO NOT provide any information from your external general knowledge.
 4. DO NOT answer the question using outside knowledge.
+5. You MUST format your response using Markdown (e.g., use **bold**, *italics*, lists, headers if appropriate).
 
 Conversation History:
 {history}
@@ -29,7 +30,8 @@ Instructions:
 2. You MUST NOT use any outside information or general knowledge.
 3. If the answer is not in the context, say that you don't have enough context in your notes.
 4. Be concise and professional.
-5. If you use bullet points, they MUST always start with an asterisk (* ).
+5. You MUST format your response using Markdown (e.g., use **bold**, *italics*, lists, headers if appropriate).
+6. If you use bullet points, they MUST always start with an asterisk (* ).
 
 Context from Personal Notes:
 {context}
@@ -52,6 +54,7 @@ Instructions:
 1. While your answers should be primarily grounded in the provided "Context from Personal Notes" and the previous conversation history, you are free to discuss broader implications and use your general knowledge to provide a richer, more helpful response.
 2. Ensure you remain consistent with the information found in the notes.
 3. If the user asks something completely unrelated to the notes or current context, steer them back or politely mention the notes-only restriction if appropriate.
+4. You MUST format your response using Markdown (e.g., use **bold**, *italics*, lists, headers if appropriate).
 
 Context from Personal Notes:
 {context}
