@@ -133,9 +133,9 @@ Before extracting any date, identify what the text is *primarily about*. Work th
 - Clearly subordinate to a dominant theme that has its own time reference
 - A recurring habit or routine rather than a specific one-time event — prefer the one-time specific event
 - Inside a hypothetical, conditional, or counterfactual clause ("if it had happened...", "had she arrived...", "imagine next week...", "would have been...")
-- Inside reported speech or a quoted message where the temporal anchor belongs to the speaker's past frame, not the text's present ("she said 'next week the results will be ready'" — 'next week' is relative to when she spoke, not to {reference_date})
+- Inside reported speech or a quoted message where the temporal anchor belongs to the speaker's past frame, not the text's present ("she said 'next week the results will be ready'" — resolve 'next week' against when she spoke, not against {reference_date})
 - A cancelled, rescheduled, or planned-but-not-executed event unless the text is explicitly about the plan itself
-- Negated ("it did NOT happen last month" — do not extract last month)
+- Negated ("it did NOT happen last month" — do not extract last month; resolve the corrected date instead)
 
 ## STEP 2: ESTABLISH THE TEMPORAL REFERENCE FRAME
 
@@ -149,9 +149,14 @@ Before resolving any date, determine what it is anchored to.
 **Rule C — Negation resolution:** When a date expression is negated, identify the actual implied date from the correction and resolve that instead.
 > Example: "not last month — it was the month before that" → resolve to 2 months before {reference_date}, not 1 month.
 
-**Rule D — Reported speech anchor shift:** Dates inside quotes or reported speech are relative to the original speaker's moment, which may be unknown or different from {reference_date}. If that speaker's moment cannot be determined from context, the date is unresolvable — return null for it. Do not resolve it against {reference_date}.
+**Rule D — Reported speech anchor shift:** Dates inside quotes or reported speech are relative to the original speaker's moment. If the speaker's moment can be determined from context, resolve against it. If it cannot be determined, the date is unresolvable — return null for it. Do not resolve against {reference_date}.
+> Example: "she said 'next Friday'" and the text establishes she spoke last Thursday → resolve 'next Friday' against last Thursday, not against {reference_date}.
 
 **Rule E — Uncertainty spanning:** If the text explicitly states uncertainty between two possible dates or offsets (e.g. "three or four summers later"), resolve both and return the full spanning range. Set confidence to LOW and note the ambiguity in reasoning.
+
+**Rule F — Composite expressions:** When the primary event's date is stated as an offset FROM another stated date ("X days after [date]", "N weeks before [date]", "the following [Day] after [date]"), the event date is the result of applying that offset to the anchor — NOT the anchor itself. Always complete the arithmetic fully before outputting.
+> Example: "signed 90 days after February 14th" → event_date = Feb 14 + 90d = May 15, not Feb 14.
+> Example: "three weeks before August 1st" → event_date = Aug 1 − 21d = July 11.
 
 ## STEP 3: EXTRACTION PRIORITY
 
@@ -160,7 +165,7 @@ Apply this priority only *within* the primary event identified in Step 1, after 
 1. Explicit absolute dates (e.g. "June 5", "2023-08-18", "March 3rd", "the 18th of August 2019")
 2. Explicit relative dates anchored to {reference_date} (e.g. "yesterday", "last Tuesday", "3 weeks ago")
 3. Period references tied to the main event (e.g. "last year", "this month", "last summer", "early 2022")
-4. Chained offsets anchored to a stated date in the text (e.g. "six years later", "forty-seven days into the journey")
+4. Chained offsets anchored to a stated date in the text (e.g. "six years later", "forty-seven days into the journey", "90 days after February 14th")
 5. Seasonal or vague period references (LOW confidence only)
 
 **Tiebreaker when two expressions are equally bound to the primary event:**
@@ -195,8 +200,8 @@ Apply this priority only *within* the primary event identified in Step 1, after 
 - this year → YYYY-01-01 (current year)
 - last year → (YYYY-1)-01-01
 - next year → (YYYY+1)-01-01
-- a year ago → same month/day, previous year
-- in a year → same month/day, next year
+- a year ago → same month and day, previous year
+- in a year → same month and day, next year
 
 **Generalized offset**
 - "N days/weeks/months/years ago" → subtract N units from {reference_date}
@@ -216,7 +221,7 @@ Apply this priority only *within* the primary event identified in Step 1, after 
 - this summer → current YYYY-06-01/YYYY-08-31
 - last winter → previous YYYY-12-01/YYYY-02-28 (spanning Dec–Feb)
 - this winter → current YYYY-12-01/YYYY-02-28
-- (Use MEDIUM confidence; note Southern Hemisphere possibility if context implies it)
+- Use MEDIUM confidence; note Southern Hemisphere possibility if context implies it
 
 **Sub-period qualifiers**
 - early [month/season/year] → first ~one-third of that period as a range
@@ -231,7 +236,7 @@ Apply this priority only *within* the primary event identified in Step 1, after 
 
 **Duration vs point-in-time**
 - "for N years/months/weeks" → duration descriptor, NOT a date; do not extract unless a start or end anchor is explicit in the text
-- "over the past N [units]" → range: (reference_date − N units) / {reference_date}
+- "over the past N [units]" → range: ({reference_date} − N units) / {reference_date}
 - "N years/months ago" → point-in-time; extract and resolve normally
 
 **Ambiguous vague expressions**
@@ -244,19 +249,20 @@ Apply this priority only *within* the primary event identified in Step 1, after 
 - Day only ("the 5th") → assume current month + year; if that date is future relative to {reference_date}, assume previous month
 - Day + Month ("August 18") → assume current year; if that date is future relative to {reference_date}, assume previous year
 - Month only ("in August") → first day of that month, current year; same future-correction applies
-- **Exception:** if the text contains an explicit year anchor ("this year", "in 2025", etc.), that anchor overrides the future-correction rule entirely
+- Exception: if the text contains an explicit year anchor ("this year", "in 2025", etc.), that anchor overrides the future-correction rule entirely
 
 ## CONSTRAINTS
 
 - NEVER return {reference_date} unless the text explicitly says "today" or "just now"
 - NEVER extract a date from background context, habit, routine, or emotional framing
-- NEVER extract a date from inside a hypothetical, conditional, counterfactual, or reported-speech clause unless the anchor moment of that speech is explicitly known
-- NEVER extract a date from a negated expression — resolve the corrected/actual date instead
+- NEVER extract a date from inside a hypothetical, conditional, counterfactual, or reported-speech clause unless the anchor moment of that speech is explicitly known and stated in the text
+- NEVER extract a negated date expression — resolve the corrected actual date instead
 - NEVER treat a duration phrase ("for N years") as a point-in-time date unless an explicit anchor makes the start or end unambiguous
-- NEVER let a higher-priority date expression override a lower-priority one if the higher-priority expression is attached to a framing event, subordinate clause, contrast, cancelled plan, or a different character's timeline
+- NEVER return an intermediate anchor date when the event date is expressed as an offset from it — always resolve the full composite expression and return the computed result
+- NEVER let a higher-priority date expression override a lower-priority one if the higher-priority expression is attached to a framing/delivery event, subordinate clause, contrast, cancelled plan, negation, or a different character's timeline
 - NEVER fabricate a date not directly inferable from the text
 - If two equally valid expressions remain after all filtering, take the more specific one; if equally specific, take the first-mentioned and set confidence to MEDIUM
-- If the text states explicit uncertainty spanning two possible dates, return the full range and set confidence to LOW
+- If the text states explicit uncertainty spanning two possible dates, return the full spanning range and set confidence to LOW
 - If no resolvable date exists after all steps, return null in event_date with a clear reason in event_reasoning
 
 ## OUTPUT
