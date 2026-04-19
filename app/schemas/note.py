@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 
 class EventExtraction(BaseModel):
@@ -36,7 +36,9 @@ class NoteResponse(BaseModel):
     summary: Optional[str] = None
     tags: List[str] = []
     sentiment: Optional[str] = None
-    event_date: Optional[str] = None
+    event_date: Optional[date] = None
+    event_start_date: Optional[date] = None
+    event_end_date: Optional[date] = None
     event_confidence: Optional[str] = None
     event_reasoning: Optional[str] = None
 
@@ -47,6 +49,16 @@ class NoteResponse(BaseModel):
     @classmethod
     def validate_tags(cls, v):
         return v or []
+
+    @computed_field
+    @property
+    def event_date_str(self) -> Optional[str]:
+        """Provides the frontend-compatible YYYY-MM-DD or range format."""
+        if not self.event_start_date:
+            return None
+        if self.event_start_date == self.event_end_date:
+            return self.event_start_date.isoformat()
+        return f"{self.event_start_date.isoformat()}/{self.event_end_date.isoformat()}"
 
     class Config:
         from_attributes = True
@@ -78,3 +90,69 @@ class AnalyzeRequest(BaseModel):
 
 class GenerateTitleRequest(BaseModel):
     content: str
+
+
+class NoteRecordCreateParams(BaseModel):
+    user_id: int
+    content: str
+    title: Optional[str] = None
+    event_date: Optional[date] = None
+    event_start_date: Optional[date] = None
+    event_end_date: Optional[date] = None
+    event_confidence: Optional[str] = None
+    event_reasoning: Optional[str] = None
+    metadata: Optional[dict] = None
+
+
+class VectorStoreSearchParams(BaseModel):
+    query: str
+    user_id: int
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    limit: int = 4
+    threshold: Optional[float] = None
+    window_size: int = 1
+
+
+class NoteRecordUpdateParams(BaseModel):
+    note_id: int
+    user_id: int
+    title: Optional[str] = None
+    content: Optional[str] = None
+    event_date: Optional[date] = None
+    event_start_date: Optional[date] = None
+    event_end_date: Optional[date] = None
+    event_confidence: Optional[str] = None
+    event_reasoning: Optional[str] = None
+    metadata: Optional[dict] = None
+
+    summary: Optional[str] = None
+    tags: Optional[List[str]] = None
+    sentiment: Optional[str] = None
+
+
+class NoteRecordSearchParams(BaseModel):
+    user_id: int
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    limit: int = 10
+
+
+class NoteServiceSearchParams(BaseModel):
+    user_id: int
+    query: str
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    limit: int = 10
+
+
+class NoteUpdateOrchestrationParams(BaseModel):
+    user_id: int
+    note_id: int
+    request: NoteUpdate
+
+
+class NoteAnalysisOrchestrationParams(BaseModel):
+    user_id: int
+    note_id: int
+    request: NoteAnalysisUpdate

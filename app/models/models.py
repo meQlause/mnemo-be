@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import datetime, date
 from app.utils.date_utils import get_jakarta_now
 from typing import List, Optional
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -39,9 +39,10 @@ class Note(Base):
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     
-    event_date: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True
-    )
+    event_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    event_start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    event_end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_jakarta_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=get_jakarta_now, onupdate=get_jakarta_now

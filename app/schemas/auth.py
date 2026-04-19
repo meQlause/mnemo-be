@@ -32,3 +32,13 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     sub: str | None = None
+
+
+class UserPersistenceParams(BaseModel):
+    username: str
+    email: EmailStr
+    hashed_password: str
+
+class UserLoginParams(BaseModel):
+    username_or_email: str
+    password: str

@@ -164,7 +164,10 @@ If multiple time expressions exist, select the one most strongly bound to the PR
 
 ## STEP 3: RESOLUTION RULES
 
-Single-day: today/just now/earlier today → {reference_date} | yesterday → -1d | tomorrow → +1d | day before yesterday → -2d | day after tomorrow → +2d
+- Format: ALL dates MUST be in YYYY-MM-DD format.
+- Ranges: Use YYYY-MM-DD/YYYY-MM-DD for ranges (e.g. "2024-04-19/2024-04-21").
+- Relative dates: 
+  Single-day: today/just now/earlier today → {reference_date} | yesterday → -1d | tomorrow → +1d | day before yesterday → -2d | day after tomorrow → +2d
 
 Weeks: this week → start of current ISO week | last week/this past week → start of previous ISO week | next week → start of next ISO week | a week ago → -7d | in a week → +7d
 

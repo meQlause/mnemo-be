@@ -16,6 +16,9 @@ from app.schemas.note import (
     NoteCreate,
     NoteResponse,
     NoteUpdate,
+    NoteServiceSearchParams,
+    NoteUpdateOrchestrationParams,
+    NoteAnalysisOrchestrationParams,
 )
 from app.services.note_service import (
     analyze_note,
@@ -39,19 +42,7 @@ async def create_note_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Creates a new note with AI-driven event extraction and vector embedding.
-
-    This endpoint triggers a streaming response that provides status updates 
-    as the AI parses the content, extracts event dates, and generates embeddings.
-
-    Args:
-        request: The note content and title.
-        session: Database session dependency.
-        current_user: The authenticated user creating the note.
-
-    Returns:
-        A StreamingResponse (SSE) with status updates and the final note data.
-    """
+    """Creates a new note with AI-driven event extraction and vector embedding."""
     return StreamingResponse(
         create_note(session, current_user.id, request), media_type="text/event-stream"
     )
@@ -62,15 +53,7 @@ async def list_notes_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Lists all notes belonging to the authenticated user.
-
-    Args:
-        session: Database session dependency.
-        current_user: The authenticated user.
-
-    Returns:
-        A list of all user's notes, ordered by creation date.
-    """
+    """Lists all notes belonging to the authenticated user."""
     return await get_user_notes(session, current_user.id)
 
 
@@ -82,24 +65,14 @@ async def search_notes_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Performs a semantic search across user notes.
-
-    Uses vector embeddings to find relevant notes based on the query string.
-    Supports optional time-based filtering.
-
-    Args:
-        query: The search string.
-        start_time: Optional start date for filtering.
-        end_time: Optional end date for filtering.
-        session: Database session dependency.
-        current_user: The authenticated user performing the search.
-
-    Returns:
-        A list of matching notes with relevancy scores.
-    """
-    return await search_notes(
-        session, current_user.id, query, start_time=start_time, end_time=end_time
+    """Performs a semantic search across user notes."""
+    params = NoteServiceSearchParams(
+        user_id=current_user.id,
+        query=query,
+        start_time=start_time,
+        end_time=end_time
     )
+    return await search_notes(session, params)
 
 
 @router.post("/chat")
@@ -108,19 +81,7 @@ async def chat_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Initiates an AI chat session based on note context (RAG).
-
-    Performs semantic retrieval of relevant note chunks and uses them as 
-    context for the LLM to answer the user's question.
-
-    Args:
-        request: The user's question and conversation history.
-        session: Database session dependency.
-        current_user: The authenticated user chatting.
-
-    Returns:
-        A StreamingResponse (SSE) with the AI's answer chunks.
-    """
+    """Initiates an AI chat session based on note context (RAG)."""
     return StreamingResponse(
         chat_with_notes(session, current_user.id, request),
         media_type="text/event-stream",
@@ -134,7 +95,12 @@ async def update_note_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    note = await update_note(session, current_user.id, note_id, request)
+    params = NoteUpdateOrchestrationParams(
+        user_id=current_user.id,
+        note_id=note_id,
+        request=request
+    )
+    note = await update_note(session, params)
     if not note:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Note not found"
@@ -161,15 +127,7 @@ async def analyze_endpoint(
     request: AnalyzeRequest,
     _: User = Depends(get_current_user),
 ):
-    """Generates an AI analysis (summary, tags, sentiment) for a note.
-
-    Args:
-        request: The note content to analyze.
-        _: Authenticated user check.
-
-    Returns:
-        A StreamingResponse (SSE) with the analysis results.
-    """
+    """Generates an AI analysis (summary, tags, sentiment) for a note."""
     return StreamingResponse(analyze_note(request), media_type="text/event-stream")
 
 
@@ -188,7 +146,12 @@ async def save_note_analysis_endpoint(
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    note = await save_note_analysis(session, current_user.id, note_id, request)
+    params = NoteAnalysisOrchestrationParams(
+        user_id=current_user.id,
+        note_id=note_id,
+        request=request
+    )
+    note = await save_note_analysis(session, params)
     if not note:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Note not found"

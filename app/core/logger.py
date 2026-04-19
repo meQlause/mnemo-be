@@ -8,13 +8,11 @@ class InterceptHandler(logging.Handler):
     See: https://loguru.readthedocs.io/en/stable/overview.html#entirely-compatible-with-standard-logging
     """
     def emit(self, record):
-        # Get corresponding Loguru level if it exists
         try:
             level = logger.level(record.levelname).name
         except ValueError:
             level = record.levelno
 
-        # Find caller from where originated the logged message
         frame, depth = logging.currentframe(), 2
         while frame.f_code.co_filename == logging.__file__:
             frame = frame.f_back
@@ -26,17 +24,13 @@ def setup_app_logging():
     """
     Configures loguru to intercept standard logging and use a custom educational format.
     """
-    # Remove default handlers for both loguru and standard logging
     logger.remove()
     logging.getLogger().handlers = [InterceptHandler()]
     
-    # Silence some noisy loggers
     logging.getLogger("uvicorn.access").handlers = [InterceptHandler()]
     logging.getLogger("uvicorn.error").handlers = [InterceptHandler()]
     logging.getLogger("fastapi").handlers = [InterceptHandler()]
 
-    # Custom format with colored tags for education
-    # extra['task'] is used to categorize the process
     log_format = (
         "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
         "<level>{level: <8}</level> | "
@@ -44,7 +38,6 @@ def setup_app_logging():
         "<level>{message}</level>"
     )
 
-    # Add back the handler with the custom format
     logger.add(
         sys.stdout,
         format=log_format,
@@ -53,7 +46,6 @@ def setup_app_logging():
         diagnose=True,
     )
     
-    # Pre-populate with a default task value
     logger.configure(extra={"task": "CORE"})
     
     logger.info("Logging system initialized with Loguru.")

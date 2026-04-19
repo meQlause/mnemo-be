@@ -82,7 +82,6 @@ async def run_extract_event_date_chain(text: str, reference_date: str) -> dict:
 
     try:
         result = await chain.ainvoke({"input": text, "reference_date": reference_date})
-        print(result)
         return result.model_dump()
     except Exception as e:
         print(f"Extraction Error: {e}")

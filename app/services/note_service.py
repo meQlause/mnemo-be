@@ -1,69 +1,90 @@
 import asyncio
-from datetime import datetime
 import json
+from datetime import date
 from typing import AsyncGenerator, List
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.chains.chain import (
     run_analyze_chain,
     run_chat_chain,
-    run_generate_title_chain,
-    run_generate_random_note_chain,
     run_extract_event_date_chain,
+    run_generate_random_note_chain,
+    run_generate_title_chain,
 )
-from app.utils.date_utils import get_jakarta_today_str
 from app.core.config import settings
-from app.models.models import Note
-from app.repositories.vector_store import (
-    add_note_with_chunks,
-    delete_note_from_store,
-    search_notes_semantic,
-    update_note_with_chunks,
-)
+from app.repositories import note_repository, vector_repository
 from app.schemas.note import (
     AnalyzeRequest,
     ChatRequest,
     GenerateTitleRequest,
-    NoteAnalysisUpdate,
+    NoteAnalysisOrchestrationParams,
     NoteCreate,
+    NoteRecordCreateParams,
+    NoteRecordSearchParams,
+    NoteRecordUpdateParams,
     NoteResponse,
-    NoteUpdate,
+    NoteServiceSearchParams,
+    NoteUpdateOrchestrationParams,
+    VectorStoreSearchParams,
 )
+from app.utils.date_utils import get_jakarta_today_str
+
+
+def parse_ai_date_range(
+    date_str: str | None,
+) -> tuple[date | None, date | None, date | None]:
+    """Parses 'YYYY-MM-DD' or 'YYYY-MM-DD/YYYY-MM-DD' into (start, end, midpoint)."""
+    if not date_str or not date_str.strip():
+        return None, None, None
+
+    try:
+        if "/" in date_str:
+            parts = date_str.split("/")
+            start = date.fromisoformat(parts[0].strip())
+            end = date.fromisoformat(parts[1].strip())
+            # Calculate midpoint
+            delta = end - start
+            midpoint = start + delta / 2
+            return start, end, midpoint
+        else:
+            d = date.fromisoformat(date_str.strip())
+            return d, d, d
+    except (ValueError, IndexError):
+        logger.bind(task="AI").warning(f"Failed to parse date string: {date_str}")
+        return None, None, None
 
 
 async def search_notes(
     session: AsyncSession,
-    user_id: int,
-    query: str,
-    start_time: datetime | None = None,
-    end_time: datetime | None = None,
-    limit: int = 10,
+    params: NoteServiceSearchParams,
 ) -> List[NoteResponse]:
-    """Searches for notes using semantic search and applies temporal filters.
+    """Searches for notes using semantic search and applies temporal filters."""
+    logger.bind(task="SEARCH").info(
+        f"User {params.user_id} searching for: '{params.query}'"
+    )
 
-    Args:
-        session: Database session.
-        user_id: ID of the user owning the notes.
-        query: Semantic search query.
-        start_time: Optional start date filter.
-        end_time: Optional end date filter.
-        limit: Maximum number of results.
+    if not params.query.strip():
+        search_params = NoteRecordSearchParams(
+            user_id=params.user_id,
+            start_time=params.start_time,
+            end_time=params.end_time,
+            limit=params.limit,
+        )
+        notes = await note_repository.search_notes_metadata(session, search_params)
+        return [NoteResponse.model_validate(n) for n in notes]
 
-    Returns:
-        A list of NoteResponse schemas.
-    """
-    logger.bind(task="SEARCH").info(f"User {user_id} searching for: '{query}'")
-    matches = await search_notes_semantic(
-        session=session,
-        query=query,
-        user_id=user_id,
-        limit=limit,
+    vector_params = VectorStoreSearchParams(
+        query=params.query,
+        user_id=params.user_id,
+        limit=params.limit,
         threshold=settings.SEMANTIC_THRESHOLD_UI,
-        start_time=start_time,
-        end_time=end_time,
+        start_time=params.start_time,
+        end_time=params.end_time,
+    )
+    matches = await vector_repository.search_semantic(
+        session=session, params=vector_params
     )
 
     return [NoteResponse.model_validate(m[0]) for m in matches]
@@ -72,19 +93,7 @@ async def search_notes(
 async def create_note(
     session: AsyncSession, user_id: int, request: NoteCreate
 ) -> AsyncGenerator[str, None]:
-    """Creates a note, extracts events via AI, and generates vector chunks.
-
-    This function is an async generator that yields status updates (SSE format)
-    before returning the final note data.
-
-    Args:
-        session: Database session.
-        user_id: ID of the user creating the note.
-        request: Schema containing note content and title.
-
-    Yields:
-        Status update strings or the final JSON string representing the note.
-    """
+    """Creates a note, extracts events via AI, and generates vector chunks."""
     logger.bind(task="NOTE").info(f"Starting creation process for user {user_id}")
     yield "data: status: parsing\n\n"
     await asyncio.sleep(0.5)
@@ -94,57 +103,55 @@ async def create_note(
     logger.bind(task="AI").info(f"Extracting events from content. Ref date: {ref_date}")
     extraction = await run_extract_event_date_chain(request.content, ref_date)
 
-    event_date = extraction.get("event_date")
+    start_date, end_date, mid_date = parse_ai_date_range(extraction.get("event_date"))
 
     yield "data: status: saving\n\n"
-    logger.bind(task="DB").info("Saving note and generating embeddings...")
-    note = await add_note_with_chunks(
-        session=session,
+    logger.bind(task="DB").info("Saving note record...")
+
+    params = NoteRecordCreateParams(
         user_id=user_id,
         content=request.content,
         title=request.title,
-        event_date=event_date,
+        event_date=mid_date,
+        event_start_date=start_date,
+        event_end_date=end_date,
         event_confidence=extraction.get("event_confidence", "LOW"),
-        event_reasoning=extraction.get("event_reasoning")
+        event_reasoning=extraction.get("event_reasoning"),
+    )
+    note = await note_repository.create_note_record(session=session, params=params)
+
+    logger.bind(task="VEC").info(f"Generating embeddings for note {note.id}...")
+    await vector_repository.add_note_chunks(
+        session=session, note_id=note.id, content=note.content, title=note.title
     )
 
-    logger.bind(task="NOTE").success(f"Note '{request.title}' created successfully (ID: {note.id})")
+    await note_repository.commit_session(session)
+
+    logger.bind(task="NOTE").success(
+        f"Note '{request.title}' created successfully (ID: {note.id})"
+    )
     resp = NoteResponse.model_validate(note)
     yield f"data: {resp.model_dump_json()}\n\n"
 
 
 async def get_user_notes(session: AsyncSession, user_id: int) -> List[NoteResponse]:
-    stmt = select(Note).where(Note.user_id == user_id).order_by(Note.created_at.desc())
-    result = await session.execute(stmt)
-    notes = result.scalars().all()
-
+    notes = await note_repository.get_user_notes_list(session, user_id)
     return [NoteResponse.model_validate(n) for n in notes]
 
 
 async def chat_with_notes(
     session: AsyncSession, user_id: int, request: ChatRequest
 ) -> AsyncGenerator[str, None]:
-    """Orchestrates a RAG-based chat session.
-
-    Retrieves relevant note chunks, builds context, and streams the AI answer.
-
-    Args:
-        session: Database session.
-        user_id: ID of the user chatting.
-        request: Schema containing the question and conversation history.
-
-    Yields:
-        Status updates, context metadata, and AI response chunks as SSE strings.
-    """
+    """Orchestrates a RAG-based chat session."""
     yield "data: status: searching notes\n\n"
-    results = await search_notes_semantic(
-        session=session,
+    params = VectorStoreSearchParams(
         query=request.question,
         user_id=user_id,
         limit=settings.RETRIEVER_K,
         threshold=settings.SEMANTIC_THRESHOLD_CHAT,
         window_size=settings.WINDOW_SIZE,
     )
+    results = await vector_repository.search_semantic(session=session, params=params)
 
     prev_context_content = None
     for msg in reversed(request.history):
@@ -187,21 +194,48 @@ async def chat_with_notes(
 
 
 async def delete_note(session: AsyncSession, user_id: int, note_id: int) -> bool:
-    return await delete_note_from_store(session, user_id, note_id)
+    await vector_repository.delete_chunks_by_note_id(session, note_id)
+    success = await note_repository.delete_note_record(session, user_id, note_id)
+    if success:
+        await note_repository.commit_session(session)
+    return success
 
 
 async def update_note(
-    session: AsyncSession, user_id: int, note_id: int, request: NoteUpdate
+    session: AsyncSession, params: NoteUpdateOrchestrationParams
 ) -> NoteResponse | None:
-    note = await update_note_with_chunks(
-        session=session,
-        user_id=user_id,
-        note_id=note_id,
-        title=request.title,
-        content=request.content,
+    """Updates a note's record and regenerates embeddings if content changed."""
+    current_note = await note_repository.get_note_by_id(
+        session, params.user_id, params.note_id
     )
-    if not note:
+    if not current_note:
         return None
+
+    content_changed = (
+        params.request.content is not None
+        and params.request.content != current_note.content
+    )
+
+    update_params = NoteRecordUpdateParams(
+        note_id=params.note_id,
+        user_id=params.user_id,
+        title=params.request.title,
+        content=params.request.content,
+    )
+    note = await note_repository.update_note_record(
+        session=session, params=update_params
+    )
+
+    if content_changed:
+        logger.bind(task="VEC").info(
+            f"Content changed for note {params.note_id}, regenerating embeddings..."
+        )
+        await vector_repository.delete_chunks_by_note_id(session, params.note_id)
+        await vector_repository.add_note_chunks(
+            session=session, note_id=note.id, content=note.content, title=note.title
+        )
+
+    await note_repository.commit_session(session)
     return NoteResponse.model_validate(note)
 
 
@@ -216,22 +250,24 @@ async def suggest_title(request: GenerateTitleRequest) -> AsyncGenerator[str, No
 
 
 async def save_note_analysis(
-    session: AsyncSession, user_id: int, note_id: int, request: NoteAnalysisUpdate
+    session: AsyncSession, params: NoteAnalysisOrchestrationParams
 ) -> NoteResponse | None:
-    stmt = select(Note).where(Note.id == note_id, Note.user_id == user_id)
-    result = await session.execute(stmt)
-    note = result.scalar_one_or_none()
+    """Saves AI-generated analysis metadata to the note record."""
+    update_params = NoteRecordUpdateParams(
+        note_id=params.note_id,
+        user_id=params.user_id,
+        summary=params.request.summary,
+        tags=params.request.tags,
+        sentiment=params.request.sentiment,
+    )
+    note = await note_repository.update_note_record(
+        session=session, params=update_params
+    )
 
     if not note:
         return None
 
-    note.summary = request.summary
-    note.tags = request.tags
-    note.sentiment = request.sentiment
-
-    await session.commit()
-    await session.refresh(note)
-
+    await note_repository.commit_session(session)
     return NoteResponse.model_validate(note)
 
 

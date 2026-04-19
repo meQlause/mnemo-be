@@ -1,8 +1,5 @@
-import os
-
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from fastapi_csrf_protect import CsrfProtect
 from fastapi_csrf_protect.exceptions import CsrfProtectError
 from pydantic import BaseModel
@@ -16,8 +13,8 @@ from app.core.logger import setup_app_logging
 setup_app_logging()
 
 app = FastAPI(
-    title="RAG Notes API",
-    description="Generate structured notes using Retrieval-Augmented Generation.",
+    title="mnemo API",
+    description="API Service for Mnemo.",
     version="1.0.0",
 )
 
@@ -60,14 +57,6 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
 app.add_middleware(DynamicCORSMiddleware)
 
 app.include_router(api_router, prefix="/api/v1")
-
-frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
-if os.path.isdir(frontend_path):
-    app.mount("/static", StaticFiles(directory=frontend_path), name="static")
-
-    @app.get("/", include_in_schema=False)
-    async def serve_frontend():
-        return FileResponse(os.path.join(frontend_path, "index.html"))
 
 
 @app.get("/health", tags=["Health"])
