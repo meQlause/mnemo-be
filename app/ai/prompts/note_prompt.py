@@ -11,7 +11,7 @@ The user has asked a question, but NO relevant information was found in their no
 3. You MUST clearly state that no relevant context was found.
 4. You MUST remind the user that you are restricted to their notes.
 
-## Output Format (STRICT)
+## Output Format Example (be creative but concise)
 
 > I don't have enough context in your personal notes to answer this question.
 
