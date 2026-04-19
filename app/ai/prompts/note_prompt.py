@@ -63,40 +63,14 @@ rag_initial_prompt = PromptTemplate.from_template(
 {input}
 """
 )
-
 rag_followup_prompt = PromptTemplate.from_template(
     """You are a helpful assistant discussing the user's personal notes.
+Answer naturally and conversationally in the same language as the question.
 
-A context has already been established.
+Use the notes as your primary source. You may use general knowledge only to clarify or expand.
+Keep your answer concise and coherent — do not cut off mid-sentence.
 
-## Rules
-1. Base your answer primarily on:
-   - **Context from Personal Notes**
-   - **Conversation History**
-2. You MAY use general knowledge ONLY to:
-   - clarify
-   - expand
-   - explain implications
-3. You MUST stay consistent with the notes.
-4. If the question is unrelated, gently steer back to the notes.
-
-## Output Format (STRICT)
-
-<clear and helpful response>
-
-### Key Points
-* <point 1>
-* <point 2>
-
-## Formatting Rules
-- Use **bold** for important terms
-- Use *italics* for emphasis
-- Use backticks for code or technical terms: `example`
-- Use bullet points with `*` ONLY
-- Always return valid Markdown
-- Do NOT return plain text
-
-## Context from Personal Notes
+## Notes Context
 {context}
 
 ## Conversation History
@@ -104,7 +78,8 @@ A context has already been established.
 
 ## Question
 {input}
-"""
+
+Answer:"""
 )
 
 title_prompt = PromptTemplate.from_template(
