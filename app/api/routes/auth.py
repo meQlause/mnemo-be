@@ -64,7 +64,15 @@ async def refresh_token(
     Refresh an expired access token using a valid refresh token from cookies.
     Validates CSRF token.
     """
-    await csrf_protect.validate_csrf_in_cookies_allowed(request)
+    csrf_token = csrf_protect.get_csrf_from_headers(request.headers)
+    if csrf_token:
+        try:
+            csrf_protect.validate_csrf(csrf_token)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"CSRF Validation failed: {str(e)}"
+            )
     
     refresh_token_value = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
     if not refresh_token_value:
@@ -89,7 +97,8 @@ async def refresh_token(
     
     return Token(
         access_token=token.access_token,
-        token_type=token.token_type
+        token_type=token.token_type,
+        refresh_token=None 
     )
 
 

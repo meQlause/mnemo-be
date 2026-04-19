@@ -77,13 +77,13 @@ async def run_generate_random_note_chain() -> AsyncGenerator[str, None]:
 
 async def run_extract_event_date_chain(text: str, reference_date: str) -> dict:
     llm = get_parse_llm()
-    # Use native structured output for high reliability
     structured_llm = llm.with_structured_output(EventExtraction)
     chain = extract_event_date_prompt | structured_llm
+    print(reference_date)
 
     try:
-        # returns the Pydantic object directly
         result = await chain.ainvoke({"input": text, "reference_date": reference_date})
+        print(result)
         return result.model_dump()
     except Exception as e:
         print(f"Extraction Error: {e}")

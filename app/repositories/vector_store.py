@@ -16,7 +16,9 @@ async def add_note_with_chunks(
     user_id: int,
     content: str,
     title: Optional[str] = None,
-    occurrence_time: Optional[datetime] = None,
+    event_date: Optional[str] = None,
+    event_confidence: Optional[str] = None,
+    event_reasoning: Optional[str] = None,
     metadata: Optional[dict] = None,
 ) -> Note:
     try:
@@ -24,7 +26,9 @@ async def add_note_with_chunks(
             user_id=user_id,
             title=title,
             content=content,
-            occurrence_time=occurrence_time,
+            event_date=event_date,
+            event_confidence=event_confidence,
+            event_reasoning=event_reasoning,
             metadata_=metadata or {},
         )
         session.add(note)
@@ -72,10 +76,13 @@ async def search_notes_semantic(
             # If no query text, perform a standard metadata search
             stmt = select(Note).where(Note.user_id == user_id)
             if start_time:
-                stmt = stmt.where(Note.occurrence_time >= start_time)
+                # Convert datetime to string for comparison with Note.event_date (String column)
+                start_str = start_time.strftime("%Y-%m-%d") if isinstance(start_time, datetime) else start_time
+                stmt = stmt.where(Note.event_date >= start_str)
             if end_time:
-                stmt = stmt.where(Note.occurrence_time <= end_time)
-            stmt = stmt.order_by(Note.occurrence_time.desc()).limit(limit)
+                end_str = end_time.strftime("%Y-%m-%d") if isinstance(end_time, datetime) else end_time
+                stmt = stmt.where(Note.event_date <= end_str)
+            stmt = stmt.order_by(Note.event_date.desc()).limit(limit)
 
             result = await session.execute(stmt)
             notes = result.scalars().all()
@@ -98,9 +105,11 @@ async def search_notes_semantic(
             stmt = stmt.where(distance <= threshold)
 
         if start_time:
-            stmt = stmt.where(Note.occurrence_time >= start_time)
+            start_str = start_time.strftime("%Y-%m-%d") if isinstance(start_time, datetime) else start_time
+            stmt = stmt.where(Note.event_date >= start_str)
         if end_time:
-            stmt = stmt.where(Note.occurrence_time <= end_time)
+            end_str = end_time.strftime("%Y-%m-%d") if isinstance(end_time, datetime) else end_time
+            stmt = stmt.where(Note.event_date <= end_str)
 
         stmt = stmt.order_by(distance).limit(limit)
 
@@ -198,6 +207,9 @@ async def update_note_with_chunks(
     note_id: int,
     title: Optional[str] = None,
     content: Optional[str] = None,
+    event_date: Optional[str] = None,
+    event_confidence: Optional[str] = None,
+    event_reasoning: Optional[str] = None,
     metadata: Optional[dict] = None,
 ) -> Optional[Note]:
     try:
@@ -210,6 +222,12 @@ async def update_note_with_chunks(
 
         if title is not None:
             note.title = title
+        if event_date is not None:
+            note.event_date = event_date
+        if event_confidence is not None:
+            note.event_confidence = event_confidence
+        if event_reasoning is not None:
+            note.event_reasoning = event_reasoning
         if metadata is not None:
             note.metadata_ = metadata
 

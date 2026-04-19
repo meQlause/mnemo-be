@@ -5,9 +5,9 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class EventExtraction(BaseModel):
-    event_date: Optional[str] = Field(None, description="YYYY-MM-DD format")
-    original_expression: Optional[str] = Field(None, description="The exact phrase found")
-    confidence: float = Field(0.0, ge=0.0, le=1.0)
+    event_date: Optional[str] = Field(None, description="YYYY-MM-DD or range format")
+    event_confidence: str = Field("LOW", description="HIGH | MEDIUM | LOW")
+    event_reasoning: Optional[str] = Field(None, description="Why this date was chosen")
 
 
 class NoteCreate(BaseModel):
@@ -36,7 +36,9 @@ class NoteResponse(BaseModel):
     summary: Optional[str] = None
     tags: List[str] = []
     sentiment: Optional[str] = None
-    occurrence_time: Optional[datetime] = None
+    event_date: Optional[str] = None
+    event_confidence: Optional[str] = None
+    event_reasoning: Optional[str] = None
 
     created_at: datetime
     updated_at: datetime

@@ -64,12 +64,7 @@ async def create_note(
     ref_date = get_jakarta_today_str()
     extraction = await run_extract_event_date_chain(request.content, ref_date)
 
-    occurrence_time = None
-    if extraction.get("event_date"):
-        try:
-            occurrence_time = datetime.strptime(extraction["event_date"], "%Y-%m-%d")
-        except ValueError:
-            pass
+    event_date = extraction.get("event_date")
 
     yield "data: status: saving\n\n"
     note = await add_note_with_chunks(
@@ -77,7 +72,9 @@ async def create_note(
         user_id=user_id,
         content=request.content,
         title=request.title,
-        occurrence_time=occurrence_time,
+        event_date=event_date,
+        event_confidence=extraction.get("event_confidence", "LOW"),
+        event_reasoning=extraction.get("event_reasoning")
     )
 
     resp = NoteResponse.model_validate(note)

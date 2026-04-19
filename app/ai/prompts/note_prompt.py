@@ -138,27 +138,53 @@ random_note_prompt = PromptTemplate.from_template(
 )
 
 extract_event_date_prompt = PromptTemplate.from_template(
-    """Extract the main event date from the text.
+    """You are a precise date extraction engine. Extract the ONE date expression most directly tied to the main event or action in the text, then resolve it using the reference date.
 
-## Core Rules
-1. Select ONLY the time expression directly tied to the main event/action.
-2. IGNORE time expressions used for background, description, or context.
-3. If multiple candidates exist, choose the one most strongly linked to the main event.
+<reference_date>{reference_date}</reference_date>
 
-## Reference Date Usage (CRITICAL)
-- The reference date ({reference_date}) is ONLY a base for calculation.
-- NEVER return the reference date as the event date unless the user explicitly says "today".
-- For relative phrases, resolve them STERNLY:
-    - "yesterday" → {reference_date} minus 1 day
-    - "this past week" → {reference_date} minus 7 days (the start of the reflection period)
-    - "last week" → {reference_date} minus 7 days
-    - "last month" → {reference_date} minus 1 month
+## EXTRACTION PRIORITY
+1. Explicit absolute dates (e.g. "June 5", "2023-08-18")
+2. Explicit relative dates (e.g. "yesterday", "last Tuesday", "3 weeks ago")
+3. Period references tied to the main event (e.g. "last year", "this month")
+4. Implicit/contextual dates inferred from surrounding context
 
-## Date Inference
-- If ONLY day is mentioned (e.g. "on the 18th"), assume current month and year from reference date.
-- If day + month is mentioned (e.g. "August 18"), assume current year from reference date.
+If multiple time expressions exist, select the one most strongly bound to the PRIMARY subject or action — not background detail, habit, or emotional commentary.
 
-Reference date: {reference_date}
+## RESOLUTION RULES
+
+Single-day: today/just now/earlier today → {reference_date} | yesterday → -1d | tomorrow → +1d | day before yesterday → -2d | day after tomorrow → +2d
+
+Weeks: this week → start of current ISO week | last week/this past week → start of previous ISO week | next week → start of next ISO week | a week ago → -7d | in a week → +7d
+
+Months: this month → first day of current month | last month → first day of previous month | next month → first day of next month | a month ago → -1 month | in a month → +1 month
+
+Years: this year → first day of current year | last year → first day of previous year | next year → first day of next year | a year ago → -1 year | in a year → +1 year
+
+Generalized: "{{n}} days/weeks/months/years ago" → -{{n}} unit | "in {{n}} days/weeks/months/years" → +{{n}} unit
+
+Weekdays: "last [Day]" → most recent [Day] before {reference_date} | "next [Day]" → next [Day] after {reference_date} | "this [Day]" → [Day] within current week
+
+Ambiguous: recently/lately → range of last 7–14 days | a while ago → last 1–3 weeks (LOW confidence) | back then/at that time → resolve only if referent is explicit in context
+
+## PARTIAL DATE INFERENCE
+- Day only (e.g. "the 18th") → assume current month + year
+- Day + Month (e.g. "August 18") → assume current year
+- Month only (e.g. "in August") → first day of that month, current year
+
+## CONSTRAINTS
+- NEVER return {reference_date} unless text explicitly says "today"
+- NEVER extract a date describing background, habit, or emotional context
+- NEVER fabricate a date not inferable from the text
+- If no resolvable date exists, return null with a brief reason
+
+## OUTPUT (strict JSON)
+```json
+{{
+  "event_date": "<YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD for ranges>",
+  "event_confidence": "HIGH | MEDIUM | LOW",
+  "event_reasoning": "<one sentence: why this expression was chosen>"
+}}
+```
 
 Text:
 {input}

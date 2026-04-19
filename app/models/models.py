@@ -39,13 +39,16 @@ class Note(Base):
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     
-    occurrence_time: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True
+    event_date: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_jakarta_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=get_jakarta_now, onupdate=get_jakarta_now
     )
+    
+    event_confidence: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    event_reasoning: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tags: Mapped[Optional[List[str]]] = mapped_column(JSONB, default=list, nullable=True)
