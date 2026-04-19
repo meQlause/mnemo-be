@@ -45,7 +45,6 @@ async def run_chat_chain(
 ) -> AsyncGenerator[str, None]:
     llm = get_llm()
 
-    # Selection logic based on context and follow-up status
     if context == "No context":
         prompt = no_context_prompt
     elif is_followup:
@@ -72,7 +71,7 @@ async def run_generate_random_note_chain() -> AsyncGenerator[str, None]:
         async for chunk in chain.astream({}):
             yield f"data: {chunk}\n\n"
     except Exception as exc:
-        yield f"data: Error generating text.\n\n"
+        yield f"data: Error generating text: {exc}.\n\n"
 
 
 async def run_extract_event_date_chain(text: str, reference_date: str) -> dict:

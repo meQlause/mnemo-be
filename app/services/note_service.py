@@ -5,6 +5,7 @@ from typing import AsyncGenerator, List
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from loguru import logger
 
 from app.ai.chains.chain import (
     run_analyze_chain,
@@ -41,6 +42,20 @@ async def search_notes(
     end_time: datetime | None = None,
     limit: int = 10,
 ) -> List[NoteResponse]:
+    """Searches for notes using semantic search and applies temporal filters.
+
+    Args:
+        session: Database session.
+        user_id: ID of the user owning the notes.
+        query: Semantic search query.
+        start_time: Optional start date filter.
+        end_time: Optional end date filter.
+        limit: Maximum number of results.
+
+    Returns:
+        A list of NoteResponse schemas.
+    """
+    logger.bind(task="SEARCH").info(f"User {user_id} searching for: '{query}'")
     matches = await search_notes_semantic(
         session=session,
         query=query,
@@ -57,16 +72,32 @@ async def search_notes(
 async def create_note(
     session: AsyncSession, user_id: int, request: NoteCreate
 ) -> AsyncGenerator[str, None]:
+    """Creates a note, extracts events via AI, and generates vector chunks.
+
+    This function is an async generator that yields status updates (SSE format)
+    before returning the final note data.
+
+    Args:
+        session: Database session.
+        user_id: ID of the user creating the note.
+        request: Schema containing note content and title.
+
+    Yields:
+        Status update strings or the final JSON string representing the note.
+    """
+    logger.bind(task="NOTE").info(f"Starting creation process for user {user_id}")
     yield "data: status: parsing\n\n"
     await asyncio.sleep(0.5)
 
     yield "data: status: extracting events\n\n"
     ref_date = get_jakarta_today_str()
+    logger.bind(task="AI").info(f"Extracting events from content. Ref date: {ref_date}")
     extraction = await run_extract_event_date_chain(request.content, ref_date)
 
     event_date = extraction.get("event_date")
 
     yield "data: status: saving\n\n"
+    logger.bind(task="DB").info("Saving note and generating embeddings...")
     note = await add_note_with_chunks(
         session=session,
         user_id=user_id,
@@ -77,6 +108,7 @@ async def create_note(
         event_reasoning=extraction.get("event_reasoning")
     )
 
+    logger.bind(task="NOTE").success(f"Note '{request.title}' created successfully (ID: {note.id})")
     resp = NoteResponse.model_validate(note)
     yield f"data: {resp.model_dump_json()}\n\n"
 
@@ -92,6 +124,18 @@ async def get_user_notes(session: AsyncSession, user_id: int) -> List[NoteRespon
 async def chat_with_notes(
     session: AsyncSession, user_id: int, request: ChatRequest
 ) -> AsyncGenerator[str, None]:
+    """Orchestrates a RAG-based chat session.
+
+    Retrieves relevant note chunks, builds context, and streams the AI answer.
+
+    Args:
+        session: Database session.
+        user_id: ID of the user chatting.
+        request: Schema containing the question and conversation history.
+
+    Yields:
+        Status updates, context metadata, and AI response chunks as SSE strings.
+    """
     yield "data: status: searching notes\n\n"
     results = await search_notes_semantic(
         session=session,
@@ -102,7 +146,6 @@ async def chat_with_notes(
         window_size=settings.WINDOW_SIZE,
     )
 
-    # Check if we have any previous successul RAG context in history
     prev_context_content = None
     for msg in reversed(request.history):
         if msg.context_content:
@@ -113,27 +156,23 @@ async def chat_with_notes(
     context_meta = [{"id": res[0].id, "title": res[0].title} for res in results]
     yield f"data: context: {json.dumps(context_meta)}\n\n"
 
-    # Determine current context and if it's a follow-up
     current_context_content = None
     if results:
         current_context_content = "\n\n---\n\n".join(
             f"Note Title: {res[0].title or 'Untitled'} (from {res[0].created_at.strftime('%Y-%m-%d')})\nContent: {res[1]}"
             for res in results
         )
-        # Send the content to the frontend so it can be saved in history
         yield f"data: context_content: {json.dumps(current_context_content)}\n\n"
     elif prev_context_content:
-        # Reuse previous context if current search yields nothing
         current_context_content = prev_context_content
 
-    # Logic flags for prompt selection
     context_to_pass = (
         current_context_content if current_context_content else "No context"
     )
     is_followup = prev_context_content is not None
 
     yield "data: status: generating response\n\n"
-
+    logger.bind(task="AI").info("Running RAG chat chain...")
     history_str = "\n".join(
         [f"{m.role.capitalize()}: {m.content}" for m in request.history]
     )

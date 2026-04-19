@@ -10,6 +10,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.router import api_router
 from app.core.config import settings
+from app.core.logger import setup_app_logging
+
+# Initialize logging
+setup_app_logging()
 
 app = FastAPI(
     title="RAG Notes API",

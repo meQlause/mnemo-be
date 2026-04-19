@@ -2,20 +2,17 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 
 
-# Properties to receive via API on creation
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=50)
     email: EmailStr
     password: str = Field(min_length=8, max_length=100)
 
 
-# Properties to receive via API on login
 class UserLogin(BaseModel):
     username_or_email: str
     password: str
 
 
-# Properties to return via API
 class UserResponse(BaseModel):
     id: int
     username: str

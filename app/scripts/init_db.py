@@ -2,7 +2,6 @@ import asyncio
 import sys
 import os
 
-# Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from sqlalchemy import text
@@ -13,9 +12,7 @@ async def init_db():
     print("Initializing database...")
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-        # 2. Create tables
         print("Creating tables...")
-        # Note: In a real app, use Alembic. For quick verification, create_all is fine.
         await conn.run_sync(Base.metadata.create_all)
     
     print("Database initialization complete!")

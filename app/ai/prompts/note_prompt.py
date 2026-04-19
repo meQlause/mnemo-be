@@ -142,7 +142,19 @@ extract_event_date_prompt = PromptTemplate.from_template(
 
 <reference_date>{reference_date}</reference_date>
 
-## EXTRACTION PRIORITY
+## STEP 1: IDENTIFY THE PRIMARY EVENT
+Before extracting any date, identify what the text is *primarily about*. Ask:
+- What is the central subject or main narrative arc of this text?
+- Which event receives the most descriptive attention or explanation?
+- Is any event explicitly framed as background, contrast, or a supporting example?
+
+Disqualify any date expression that is:
+- Introduced as a contrast or illustration ("on another day", "for example", "such as", "yesterday's")
+- A single-sentence aside within a longer narrative about a different time period
+- Clearly subordinate to a dominant theme that has its own time reference
+
+## STEP 2: EXTRACTION PRIORITY
+Apply this priority only *within* the primary event identified in Step 1:
 1. Explicit absolute dates (e.g. "June 5", "2023-08-18")
 2. Explicit relative dates (e.g. "yesterday", "last Tuesday", "3 weeks ago")
 3. Period references tied to the main event (e.g. "last year", "this month")
@@ -150,7 +162,7 @@ extract_event_date_prompt = PromptTemplate.from_template(
 
 If multiple time expressions exist, select the one most strongly bound to the PRIMARY subject or action — not background detail, habit, or emotional commentary.
 
-## RESOLUTION RULES
+## STEP 3: RESOLUTION RULES
 
 Single-day: today/just now/earlier today → {reference_date} | yesterday → -1d | tomorrow → +1d | day before yesterday → -2d | day after tomorrow → +2d
 
@@ -175,6 +187,7 @@ Ambiguous: recently/lately → range of last 7–14 days | a while ago → last 
 - NEVER return {reference_date} unless text explicitly says "today"
 - NEVER extract a date describing background, habit, or emotional context
 - NEVER fabricate a date not inferable from the text
+- NEVER let a higher-priority date override a lower-priority one if the higher-priority date belongs to a subordinate clause, contrast example, or single-sentence aside within a longer primary narrative
 - If no resolvable date exists, return null with a brief reason
 
 ## OUTPUT (strict JSON)
@@ -182,7 +195,7 @@ Ambiguous: recently/lately → range of last 7–14 days | a while ago → last 
 {{
   "event_date": "<YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD for ranges>",
   "event_confidence": "HIGH | MEDIUM | LOW",
-  "event_reasoning": "<one sentence: why this expression was chosen>"
+  "event_reasoning": "<one sentence: why this expression was chosen and why competing expressions were disqualified>"
 }}
 ```
 

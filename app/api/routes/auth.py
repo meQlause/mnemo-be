@@ -17,8 +17,14 @@ router = APIRouter()
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
 async def register(user_create: UserCreate, session: AsyncSession = Depends(get_db)):
-    """
-    Register a new user.
+    """Registers a new user in the system.
+
+    Args:
+        user_create: The user data including username, email, and password.
+        session: Database session dependency.
+
+    Returns:
+        The newly created user profile.
     """
     new_user = await register_user(session, user_create)
     return new_user
@@ -31,9 +37,19 @@ async def login(
     session: AsyncSession = Depends(get_db),
     csrf_protect: CsrfProtect = Depends(),
 ):
-    """
-    OAuth2 compatible token login, get an access token for future requests.
-    Sets refresh_token and csrf_token in cookies.
+    """Authenticates a user and sets security cookies.
+
+    Performs OAuth2 compatible token login. Sets refresh_token and 
+    csrf_token in Secure/HttpOnly cookies for the session.
+
+    Args:
+        response: FastAPI response object used to set cookies.
+        form_data: Standard OAuth2 password request form (username/password).
+        session: Database session dependency.
+        csrf_protect: CSRF protection dependency.
+
+    Returns:
+        The access token and token type.
     """
     token = await login_user(session, form_data.username, form_data.password)
 
@@ -59,9 +75,22 @@ async def refresh_token(
     session: AsyncSession = Depends(get_db),
     csrf_protect: CsrfProtect = Depends(),
 ):
-    """
-    Refresh an expired access token using a valid refresh token from cookies.
-    CSRF is optional for refresh to support session restoration on page load
+    """Refreshes an expired access token.
+
+    Validates the refresh token from cookies and the CSRF token from headers.
+    If valid, issues new access and refresh tokens.
+
+    Args:
+        request: The incoming request containing cookies and headers.
+        response: FastAPI response object used to set new cookies.
+        session: Database session dependency.
+        csrf_protect: CSRF protection dependency.
+
+    Returns:
+        A new access token.
+
+    Raises:
+        HTTPException: If the refresh token is missing or CSRF/Auth validation fails.
     """
 
     refresh_token_value = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
@@ -92,8 +121,13 @@ async def refresh_token(
 
 @router.post("/logout")
 async def logout(response: Response):
-    """
-    Logout by clearing cookies.
+    """Logs out the current user by clearing security cookies.
+
+    Args:
+        response: FastAPI response object used to delete cookies.
+
+    Returns:
+        A confirmation message.
     """
     response.delete_cookie(settings.REFRESH_TOKEN_COOKIE_NAME)
     response.delete_cookie(settings.CSRF_TOKEN_COOKIE_NAME)

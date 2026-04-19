@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from loguru import logger
 
 from app.ai.models.embeddings import get_embeddings
 from app.core.config import settings
@@ -21,6 +22,27 @@ async def add_note_with_chunks(
     event_reasoning: Optional[str] = None,
     metadata: Optional[dict] = None,
 ) -> Note:
+    """Stores a note and its semantic chunks in PostgreSQL and the Vector Store.
+
+    Performs text splitting, embedding generation, and bulk insertion of chunks.
+    Ensures transactional integrity by rolling back on any failure.
+
+    Args:
+        session: Database session.
+        user_id: ID of the user owning the note.
+        content: The raw text content.
+        title: Optional title.
+        event_date: Optional AI-extracted date string.
+        event_confidence: LOW/MID/HIGH confidence score for the event extraction.
+        event_reasoning: AI's reasoning for the event extraction.
+        metadata: Additional metadata dictionary.
+
+    Returns:
+        The created Note model instance.
+
+    Raises:
+        VectorStoreError: If the storage or embedding process fails.
+    """
     try:
         note = Note(
             user_id=user_id,
@@ -42,6 +64,7 @@ async def add_note_with_chunks(
         text_chunks = splitter.split_text(text_to_embed)
 
         embeddings_model = get_embeddings()
+        logger.bind(task="VEC").info(f"Generating embeddings for {len(text_chunks)} chunks...")
         embeddings = embeddings_model.embed_documents(text_chunks)
 
         for i, (chunk_text, embedding) in enumerate(zip(text_chunks, embeddings)):
@@ -59,6 +82,9 @@ async def add_note_with_chunks(
     except Exception as exc:
         await session.rollback()
         raise VectorStoreError(f"Failed to store note and chunks: {exc}") from exc
+    except Exception as exc:
+        await session.rollback()
+        raise VectorStoreError(f"Failed to store note and chunks: {exc}") from exc
 
 
 async def search_notes_semantic(
@@ -71,12 +97,31 @@ async def search_notes_semantic(
     threshold: Optional[float] = None,
     window_size: int = 1,
 ) -> List[Tuple[Note, str, float]]:
+    """Performs semantic search using vector cosine distance and window context.
+
+    Calculates cosine distance between query embedding and NoteChunk embeddings.
+    Reconstructs context by including adjacent chunks based on window_size.
+
+    Args:
+        session: Database session.
+        query: Search string.
+        user_id: Owner filter.
+        start_time: Start temporal filter.
+        end_time: End temporal filter.
+        limit: Number of top matches.
+        threshold: Distance threshold (lower is closer).
+        window_size: Number of chunks to include before/after matching chunk.
+
+    Returns:
+        A list of tuples: (Note object, combined chunk content, distance score).
+
+    Raises:
+        VectorStoreError: If semantic search query fails.
+    """
     try:
         if not query.strip():
-            # If no query text, perform a standard metadata search
             stmt = select(Note).where(Note.user_id == user_id)
             if start_time:
-                # Convert datetime to string for comparison with Note.event_date (String column)
                 start_str = start_time.strftime("%Y-%m-%d") if isinstance(start_time, datetime) else start_time
                 stmt = stmt.where(Note.event_date >= start_str)
             if end_time:
@@ -94,7 +139,7 @@ async def search_notes_semantic(
         distance = NoteChunk.embedding.cosine_distance(query_embedding).label(
             "distance"
         )
-
+        logger.bind(task="VEC").info(f"Executing cosine distance search for query: {query}")
         stmt = (
             select(Note, NoteChunk.chunk_content, distance, NoteChunk.chunk_index)
             .join(NoteChunk, Note.id == NoteChunk.note_id)
@@ -115,6 +160,7 @@ async def search_notes_semantic(
 
         result = await session.execute(stmt)
         matches = result.all()
+        logger.bind(task="VEC").info(f"Semantic search found {len(matches)} potential context chunks.")
 
         if not matches:
             return []
