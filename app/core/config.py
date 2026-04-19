@@ -21,18 +21,16 @@ class Settings(BaseSettings):
     SEMANTIC_THRESHOLD_CHAT: float = 0.3
     WINDOW_SIZE: int = 1
 
-    # JWT Authentication
     SECRET_KEY: str = "supersecretkey_please_change_in_production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
-    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
-    # Cookie & CSRF Settings
     REFRESH_TOKEN_COOKIE_NAME: str = "refresh_token"
     CSRF_TOKEN_COOKIE_NAME: str = "fastapi-csrf-token"
-    SECRET_KEY_CSRF: str = "supersecretkey_please_change_in_production"  
+    SECRET_KEY_CSRF: str = "supersecretkey_please_change_in_production"
     COOKIE_SAMESITE: str = "strict"
-    COOKIE_SECURE: bool = False  
+    COOKIE_SECURE: bool = False
 
     @property
     def postgres_dsn(self) -> str:
