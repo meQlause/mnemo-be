@@ -37,8 +37,6 @@ class NoteResponse(BaseModel):
     tags: List[str] = []
     sentiment: Optional[str] = None
     event_date: Optional[date] = None
-    event_start_date: Optional[date] = None
-    event_end_date: Optional[date] = None
     event_confidence: Optional[str] = None
     event_reasoning: Optional[str] = None
 
@@ -50,15 +48,6 @@ class NoteResponse(BaseModel):
     def validate_tags(cls, v):
         return v or []
 
-    @computed_field
-    @property
-    def event_date_str(self) -> Optional[str]:
-        """Provides the frontend-compatible YYYY-MM-DD or range format."""
-        if not self.event_start_date:
-            return None
-        if self.event_start_date == self.event_end_date:
-            return self.event_start_date.isoformat()
-        return f"{self.event_start_date.isoformat()}/{self.event_end_date.isoformat()}"
 
     class Config:
         from_attributes = True
@@ -97,8 +86,6 @@ class NoteRecordCreateParams(BaseModel):
     content: str
     title: Optional[str] = None
     event_date: Optional[date] = None
-    event_start_date: Optional[date] = None
-    event_end_date: Optional[date] = None
     event_confidence: Optional[str] = None
     event_reasoning: Optional[str] = None
     metadata: Optional[dict] = None
@@ -120,8 +107,6 @@ class NoteRecordUpdateParams(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     event_date: Optional[date] = None
-    event_start_date: Optional[date] = None
-    event_end_date: Optional[date] = None
     event_confidence: Optional[str] = None
     event_reasoning: Optional[str] = None
     metadata: Optional[dict] = None

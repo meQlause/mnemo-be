@@ -1,5 +1,6 @@
 from functools import lru_cache
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_mistralai import ChatMistralAI
 from app.core.config import settings
 
 
@@ -13,9 +14,9 @@ def get_llm() -> ChatGoogleGenerativeAI:
 
 
 @lru_cache(maxsize=1)
-def get_parse_llm() -> ChatGoogleGenerativeAI:
-    return ChatGoogleGenerativeAI(
-        model=settings.GOOGLE_PARSE_MODEL,
+def get_parse_llm() -> ChatMistralAI:
+    return ChatMistralAI(
+        model=settings.MISTRAL_PARSE_MODEL,
         temperature=0.0,
-        google_api_key=settings.GOOGLE_API_KEY,
+        mistral_api_key=settings.MISTRAL_API_KEY,
     )

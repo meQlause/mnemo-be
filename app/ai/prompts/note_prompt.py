@@ -143,64 +143,135 @@ extract_event_date_prompt = PromptTemplate.from_template(
 <reference_date>{reference_date}</reference_date>
 
 ## STEP 1: IDENTIFY THE PRIMARY EVENT
+
 Before extracting any date, identify what the text is *primarily about*. Ask:
 - What is the central subject or main narrative arc of this text?
 - Which event receives the most descriptive attention or explanation?
 - Is any event explicitly framed as background, contrast, or a supporting example?
 
 Disqualify any date expression that is:
-- Introduced as a contrast or illustration ("on another day", "for example", "such as", "yesterday's")
+- Introduced as a contrast or illustration ("on another day", "for example", "such as", "unlike last time")
 - A single-sentence aside within a longer narrative about a different time period
 - Clearly subordinate to a dominant theme that has its own time reference
+- Part of a recurring habit or routine rather than a specific one-time event (prefer the one-time event)
+- Inside a hypothetical, conditional, or counterfactual clause ("if it had happened...", "had she arrived yesterday...", "imagine next week...")
+- Inside reported speech or a quote where the temporal anchor belongs to the speaker's past frame, not the text's present ("she said 'I'll do it tomorrow'" — tomorrow is relative to the speaker, not {reference_date})
 
-## STEP 2: EXTRACTION PRIORITY
+## STEP 2: TEMPORAL REFERENCE FRAME
+
+All relative date expressions must be resolved against {reference_date} UNLESS the expression is clearly anchored to a different stated date in the text.
+
+Example: "He was born in 1990. Two years later he moved abroad." → "two years later" resolves to 1992, not {reference_date} minus 2 years, because it is explicitly anchored to 1990.
+
+If a temporal expression is negated, resolve the actual implied date, not the negated one.
+Example: "not last year, but the year before" → resolve to first day of the year 2 years before {reference_date}.
+
+## STEP 3: EXTRACTION PRIORITY
+
 Apply this priority only *within* the primary event identified in Step 1:
-1. Explicit absolute dates (e.g. "June 5", "2023-08-18")
-2. Explicit relative dates (e.g. "yesterday", "last Tuesday", "3 weeks ago")
-3. Period references tied to the main event (e.g. "last year", "this month")
-4. Implicit/contextual dates inferred from surrounding context
 
-If multiple time expressions exist, select the one most strongly bound to the PRIMARY subject or action — not background detail, habit, or emotional commentary.
+1. Explicit absolute dates (e.g. "June 5", "2023-08-18", "March 3rd")
+2. Explicit relative dates anchored to reference_date (e.g. "yesterday", "last Tuesday", "3 weeks ago")
+3. Period references tied to the main event (e.g. "last year", "this month", "last summer")
+4. Implicit/contextual dates inferred from surrounding anchored context
+5. Seasonal or vague period references (LOW confidence only)
 
-## STEP 3: RESOLUTION RULES
+If multiple time expressions exist at the same priority level and are equally bound to the primary event, select the most specific one (a specific day beats a month, a month beats a year). If specificity is equal, select the earliest-mentioned expression and flag confidence as MEDIUM.
 
-- Format: ALL dates MUST be in YYYY-MM-DD format.
-- Ranges: Use YYYY-MM-DD/YYYY-MM-DD for ranges (e.g. "2024-04-19/2024-04-21").
-- Relative dates: 
-  Single-day: today/just now/earlier today → {reference_date} | yesterday → -1d | tomorrow → +1d | day before yesterday → -2d | day after tomorrow → +2d
+## STEP 4: RESOLUTION RULES
 
-Weeks: this week → start of current ISO week | last week/this past week → start of previous ISO week | next week → start of next ISO week | a week ago → -7d | in a week → +7d
+**Single-day**
+today / just now / earlier today → {reference_date}
+yesterday → -1d
+tomorrow → +1d
+day before yesterday → -2d
+day after tomorrow → +2d
 
-Months: this month → first day of current month | last month → first day of previous month | next month → first day of next month | a month ago → -1 month | in a month → +1 month
+**Weeks**
+this week → start of current ISO week (Monday)
+last week / this past week → start of previous ISO week
+next week → start of next ISO week
+a week ago / one week ago → -7d
+in a week → +7d
 
-Years: this year → first day of current year | last year → first day of previous year | next year → first day of next year | a year ago → -1 year | in a year → +1 year
+**Months**
+this month → first day of current month
+last month → first day of previous month
+next month → first day of next month
+a month ago → -1 month (same day, previous month)
+in a month → +1 month
 
-Generalized: "{{n}} days/weeks/months/years ago" → -{{n}} unit | "in {{n}} days/weeks/months/years" → +{{n}} unit
+**Years**
+this year → first day of current year (YYYY-01-01)
+last year → first day of previous year
+next year → first day of next year
+a year ago → -1 year
+in a year → +1 year
 
-Weekdays: "last [Day]" → most recent [Day] before {reference_date} | "next [Day]" → next [Day] after {reference_date} | "this [Day]" → [Day] within current week
+**Generalized offset**
+"{{n}} days/weeks/months/years ago" → subtract {{n}} units from {reference_date}
+"in {{n}} days/weeks/months/years" → add {{n}} units to {reference_date}
 
-Ambiguous: recently/lately → range of last 7–14 days | a while ago → last 1–3 weeks (LOW confidence) | back then/at that time → resolve only if referent is explicit in context
+**Weekdays**
+"last [Day]" → most recent [Day] strictly before {reference_date}
+"next [Day]" → next [Day] strictly after {reference_date}
+"this [Day]" → [Day] within the current ISO week
+
+**Ordinal weekday-in-month**
+"the first/second/third/last [Day] of [Month]" → compute the actual calendar date; assume current year if no year given
+
+**Seasons** (Northern Hemisphere default unless context implies otherwise)
+last summer → YYYY-06-01 (previous year if current month is before June, else current year)
+this summer → YYYY-06-01 (current year)
+last winter → YYYY-12-01 of previous year
+this winter → YYYY-12-01 of current year
+(Use MEDIUM confidence for all seasonal references; note in reasoning if Southern Hemisphere is implied)
+
+**Sub-period qualifiers**
+early [month/season/year] → first day of that period
+mid [month/season/year] → 15th of that month, or midpoint of that period
+late [month/season/year] → last day of that period
+Output as a date range: YYYY-MM-DD/YYYY-MM-DD spanning the approximate sub-period
+
+**Fiscal / academic periods** (use LOW confidence; note ambiguity in reasoning)
+last quarter → first day of the previous calendar quarter (Q1=Jan, Q2=Apr, Q3=Jul, Q4=Oct)
+this quarter → first day of current calendar quarter
+last semester / last term → approximate: -6 months from {reference_date}, first of that month
+
+**Duration vs point-in-time disambiguation**
+"for three years" → describes duration, NOT a date; do not extract unless a start or end anchor is explicit
+"three years ago" → point-in-time; extract and resolve normally
+"over the past month" → range: first day of previous month / {reference_date}
+
+**Ambiguous vague expressions**
+recently / lately → range: ({reference_date} - 14d) / {reference_date} (LOW confidence)
+a while ago / some time ago → range: ({reference_date} - 21d) / ({reference_date} - 7d) (LOW confidence)
+back then / at that time → resolve only if an explicit referent date appears earlier in the text; otherwise return null
 
 ## PARTIAL DATE INFERENCE
-- Day only (e.g. "the 18th") → assume current month + year
-- Day + Month (e.g. "August 18") → assume current year
-- Month only (e.g. "in August") → first day of that month, current year
+
+- Day only (e.g. "the 18th") → assume current month + year; if that date is in the future relative to {reference_date}, assume previous month
+- Day + Month (e.g. "August 18") → assume current year; if that date is in the future relative to {reference_date}, assume previous year
+- Month only (e.g. "in August") → first day of that month, current year; same future-correction rule applies
 
 ## CONSTRAINTS
-- NEVER return {reference_date} unless text explicitly says "today"
-- NEVER extract a date describing background, habit, or emotional context
-- NEVER fabricate a date not inferable from the text
-- NEVER let a higher-priority date override a lower-priority one if the higher-priority date belongs to a subordinate clause, contrast example, or single-sentence aside within a longer primary narrative
-- If no resolvable date exists, return null with a brief reason
 
-## OUTPUT (strict JSON)
-```json
+- NEVER return {reference_date} unless text explicitly says "today" or "just now"
+- NEVER extract a date describing background, habit, routine, or emotional context
+- NEVER extract a date from inside a hypothetical, conditional, or reported-speech clause
+- NEVER fabricate a date not directly inferable from the text
+- NEVER let a higher-priority date expression override a lower-priority one if the higher-priority expression belongs to a subordinate clause, contrast, aside, or a different character's timeline
+- NEVER treat a duration phrase ("for N years") as a point-in-time date unless an explicit anchor makes the start or end unambiguous
+- If two equally valid date expressions remain after all filtering, pick the more specific one; if equally specific, pick the first-mentioned and set confidence to MEDIUM
+- If no resolvable date exists, return null in event_date with a brief reason in event_reasoning
+
+## OUTPUT (strict JSON — no markdown fences, no extra keys)
+
 {{
-  "event_date": "<YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD for ranges>",
+  "event_date": "<YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD for ranges, or null>",
   "event_confidence": "HIGH | MEDIUM | LOW",
-  "event_reasoning": "<one sentence: why this expression was chosen and why competing expressions were disqualified>"
+  "event_reasoning": "<one sentence: the chosen expression, why it was chosen, and why any competing expressions were disqualified>"
 }}
-```
 
 Text:
 {input}

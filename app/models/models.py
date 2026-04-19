@@ -40,8 +40,6 @@ class Note(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     
     event_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    event_start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    event_end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_jakarta_now)
     updated_at: Mapped[datetime] = mapped_column(

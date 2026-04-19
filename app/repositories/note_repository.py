@@ -21,8 +21,6 @@ async def create_note_record(
         title=params.title,
         content=params.content,
         event_date=params.event_date,
-        event_start_date=params.event_start_date,
-        event_end_date=params.event_end_date,
         event_confidence=params.event_confidence,
         event_reasoning=params.event_reasoning,
         metadata_=params.metadata or {},

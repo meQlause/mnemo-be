@@ -32,28 +32,20 @@ from app.schemas.note import (
 from app.utils.date_utils import get_jakarta_today_str
 
 
-def parse_ai_date_range(
-    date_str: str | None,
-) -> tuple[date | None, date | None, date | None]:
-    """Parses 'YYYY-MM-DD' or 'YYYY-MM-DD/YYYY-MM-DD' into (start, end, midpoint)."""
+def parse_ai_date_range(date_str: str | None) -> date | None:
+    """Parses 'YYYY-MM-DD' or 'YYYY-MM-DD/YYYY-MM-DD' into a single date (start)."""
     if not date_str or not date_str.strip():
-        return None, None, None
+        return None
 
     try:
         if "/" in date_str:
             parts = date_str.split("/")
-            start = date.fromisoformat(parts[0].strip())
-            end = date.fromisoformat(parts[1].strip())
-            # Calculate midpoint
-            delta = end - start
-            midpoint = start + delta / 2
-            return start, end, midpoint
+            return date.fromisoformat(parts[0].strip())
         else:
-            d = date.fromisoformat(date_str.strip())
-            return d, d, d
+            return date.fromisoformat(date_str.strip())
     except (ValueError, IndexError):
         logger.bind(task="AI").warning(f"Failed to parse date string: {date_str}")
-        return None, None, None
+        return None
 
 
 async def search_notes(
@@ -103,7 +95,7 @@ async def create_note(
     logger.bind(task="AI").info(f"Extracting events from content. Ref date: {ref_date}")
     extraction = await run_extract_event_date_chain(request.content, ref_date)
 
-    start_date, end_date, mid_date = parse_ai_date_range(extraction.get("event_date"))
+    event_date = parse_ai_date_range(extraction.get("event_date"))
 
     yield "data: status: saving\n\n"
     logger.bind(task="DB").info("Saving note record...")
@@ -112,9 +104,7 @@ async def create_note(
         user_id=user_id,
         content=request.content,
         title=request.title,
-        event_date=mid_date,
-        event_start_date=start_date,
-        event_end_date=end_date,
+        event_date=event_date,
         event_confidence=extraction.get("event_confidence", "LOW"),
         event_reasoning=extraction.get("event_reasoning"),
     )

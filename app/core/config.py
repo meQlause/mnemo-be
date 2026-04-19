@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = "raguser"
     POSTGRES_PASSWORD: str = "ragpassword"
     POSTGRES_DB: str = "ragdb"
+    
+    MISTRAL_API_KEY: str = "placeholder"
+    MISTRAL_PARSE_MODEL: str = "mistral-small-latest"
 
     COLLECTION_NAME: str = "rag_notes_store"
     CHUNK_SIZE: int = 768
