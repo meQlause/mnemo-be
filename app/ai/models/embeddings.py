@@ -10,5 +10,5 @@ def get_embeddings() -> GoogleGenerativeAIEmbeddings:
     return GoogleGenerativeAIEmbeddings(
         model=settings.GOOGLE_EMBEDDING_MODEL,
         google_api_key=settings.GOOGLE_API_KEY,
-        output_dimensionality=768,
+        output_dimensionality=200,
     )

@@ -81,6 +81,6 @@ class NoteChunk(Base):
     )
     chunk_content: Mapped[str] = mapped_column(Text, nullable=False)
     chunk_index: Mapped[int] = mapped_column(nullable=False)
-    embedding: Mapped[Vector] = mapped_column(Vector(768))
+    embedding: Mapped[Vector] = mapped_column(Vector(200))
 
     note: Mapped["Note"] = relationship("Note", back_populates="chunks")

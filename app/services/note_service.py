@@ -1,7 +1,7 @@
-import asyncio
 import json
+import time
 from datetime import date
-from typing import AsyncGenerator, List
+from typing import Any, AsyncGenerator, List
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -88,7 +88,7 @@ async def create_note(
     """Creates a note, extracts events via AI, and generates vector chunks."""
     logger.bind(task="NOTE").info(f"Starting creation process for user {user_id}")
     yield "data: status: parsing\n\n"
-    await asyncio.sleep(0.5)
+    time.sleep(0.5)
 
     yield "data: status: extracting events\n\n"
     ref_date = get_jakarta_today_str()
@@ -129,58 +129,150 @@ async def get_user_notes(session: AsyncSession, user_id: int) -> List[NoteRespon
     return [NoteResponse.model_validate(n) for n in notes]
 
 
-async def chat_with_notes(
+async def _resolve_chat_context(
     session: AsyncSession, user_id: int, request: ChatRequest
-) -> AsyncGenerator[str, None]:
-    """Orchestrates a RAG-based chat session."""
-    yield "data: status: searching notes\n\n"
-    params = VectorStoreSearchParams(
-        query=request.question,
-        user_id=user_id,
-        limit=settings.RETRIEVER_K,
-        threshold=settings.SEMANTIC_THRESHOLD_CHAT,
-        window_size=settings.WINDOW_SIZE,
-    )
-    results = await vector_repository.search_semantic(session=session, params=params)
+) -> AsyncGenerator[Any, None]:
+    """Handles context retrieval from ID, provided content, or semantic search."""
+    if request.selected_note_id:
+        yield f"data: status: [1/4] Loading dedicated Note ID: {request.selected_note_id}\n\n"
+        note_obj = await note_repository.get_note_by_id(
+            session, user_id, request.selected_note_id
+        )
+        if not note_obj:
+            yield "data: error: note is not exist\n\n"
+            return
 
-    prev_context_content = None
+        yield "data: status: [2/4] Fetching and restructuring all chunks for the selected note...\n\n"
+        chunks = await vector_repository.get_chunks_by_note_ids(session, [note_obj.id])
+        matches = [(note_obj, c.chunk_content, 0.0, c.chunk_index) for c in chunks]
+
+        results = await vector_repository.reconstruct_note_context(
+            session=session, matches=matches, window_size=settings.WINDOW_SIZE
+        )
+        yield f"data: status: [2/4] Note context reconstructed into {len(results)} coherent blocks\n\n"
+        yield results
+
+    elif request.context_content:
+        yield "data: status: [1/4] Using provided context (bypassing search)\n\n"
+        yield []
+
+    else:
+        yield "data: status: [1/4] Searching semantic index (RAG)...\n\n"
+        params = VectorStoreSearchParams(
+            query=request.question,
+            user_id=user_id,
+            limit=settings.RETRIEVER_K,
+            threshold=settings.SEMANTIC_THRESHOLD_CHAT,
+            window_size=settings.WINDOW_SIZE,
+        )
+        results = await vector_repository.search_semantic(
+            session=session, params=params
+        )
+
+        unique_notes = {}
+        for res in results:
+            note_obj = res[0]
+            if note_obj.id not in unique_notes:
+                unique_notes[note_obj.id] = note_obj
+
+        if len(unique_notes) > 1 and not request.selected_note_id:
+            selection_data = [
+                NoteResponse.model_validate(note_obj).model_dump(mode="json")
+                for note_obj in unique_notes.values()
+            ]
+            yield f"data: selection_required: {json.dumps(selection_data)}\n\n"
+            return
+
+        yield f"data: status: [2/4] Semantic search found {len(results)} relevant context blocks\n\n"
+        yield results
+
+
+def _extract_history_context(request: ChatRequest) -> tuple[str | None, str]:
+    """Extracts previous context and formats history into a string."""
+    prev_context = None
     for msg in reversed(request.history):
         if msg.context_content:
-            prev_context_content = msg.context_content
+            prev_context = msg.context_content
             break
 
-    yield "data: status: building context\n\n"
+    history_str = "\n".join(
+        [f"{m.role.capitalize()}: {m.content}" for m in request.history]
+    )
+    return prev_context, history_str
+
+
+async def _assemble_final_context(
+    results: List[Any], request: ChatRequest, prev_context: str | None
+) -> AsyncGenerator[Any, None]:
+    """Formats context blocks into a final string and yields metadata packets."""
+    yield "data: status: [3/4] Reassembling context and history...\n\n"
+    
     context_meta = [{"id": res[0].id, "title": res[0].title} for res in results]
     yield f"data: context: {json.dumps(context_meta)}\n\n"
 
-    current_context_content = None
+    current_context_content = request.context_content
     if results:
         current_context_content = "\n\n---\n\n".join(
             f"Note Title: {res[0].title or 'Untitled'} (from {res[0].created_at.strftime('%Y-%m-%d')})\nContent: {res[1]}"
             for res in results
         )
+        # Yield for frontend storage optimization
         yield f"data: context_content: {json.dumps(current_context_content)}\n\n"
-    elif prev_context_content:
-        current_context_content = prev_context_content
+    elif prev_context and not current_context_content:
+        current_context_content = prev_context
 
-    context_to_pass = (
-        current_context_content if current_context_content else "No context"
-    )
-    is_followup = prev_context_content is not None
+    final_context = current_context_content if current_context_content else "No context"
+    
+    ctx_len = len(final_context)
+    yield f"data: status: [3/4] Ready to send {ctx_len} characters of context to AI\n\n"
+    yield final_context
 
-    yield "data: status: generating response\n\n"
-    logger.bind(task="AI").info("Running RAG chat chain...")
-    history_str = "\n".join(
-        [f"{m.role.capitalize()}: {m.content}" for m in request.history]
-    )
+
+async def chat_with_notes(
+    session: AsyncSession, user_id: int, request: ChatRequest
+) -> AsyncGenerator[str, None]:
+    """Orchestrates a RAG-based chat session by coordinating helper functions."""
+    start_time = time.time()
+    results = None
+
+    async for item in _resolve_chat_context(session, user_id, request):
+        if isinstance(item, str) and item.startswith("data: "):
+            yield item
+        else:
+            results = item
+
+    if results is None and not request.context_content:
+        return  
+
+    db_time = time.time() - start_time
+    yield f"data: status: [2/4] Database/Search Phase completed in {db_time:.2f}s\n\n"
+
+    prev_context, history_str = _extract_history_context(request)
+    
+    final_context = "No context"
+    async for item in _assemble_final_context(results or [], request, prev_context):
+        if isinstance(item, str) and item.startswith("data: "):
+            yield item
+        else:
+            final_context = item
+
+    time.sleep(0.5)
+
+    yield f"data: status: [4/4] LLM request started (Model: {settings.GOOGLE_LLM_MODEL})...\n\n"
+    llm_start = time.time()
+
+    logger.bind(task="AI").info(f"Running RAG chat chain with {len(final_context)} chars context...")
 
     async for chunk in run_chat_chain(
-        context=context_to_pass,
+        context=final_context,
         user_input=request.question,
         history=history_str,
-        is_followup=is_followup,
+        is_followup=(prev_context is not None),
     ):
         yield chunk
+
+    llm_time = time.time() - llm_start
+    logger.bind(task="AI").info(f"LLM response completed in {llm_time:.2f}s")
 
 
 async def delete_note(session: AsyncSession, user_id: int, note_id: int) -> bool:

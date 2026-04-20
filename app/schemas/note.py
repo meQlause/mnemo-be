@@ -48,7 +48,6 @@ class NoteResponse(BaseModel):
     def validate_tags(cls, v):
         return v or []
 
-
     class Config:
         from_attributes = True
 
@@ -70,6 +69,8 @@ class ChatRequest(BaseModel):
         min_length=1, max_length=2000, description="Question asked to the AI"
     )
     history: List[ChatMessage] = []
+    selected_note_id: Optional[int] = None
+    context_content: Optional[str] = None
 
 
 class AnalyzeRequest(BaseModel):
@@ -98,7 +99,7 @@ class VectorStoreSearchParams(BaseModel):
     end_time: Optional[datetime] = None
     limit: int = 4
     threshold: Optional[float] = None
-    window_size: int = 1
+    window_size: int = 2
 
 
 class NoteRecordUpdateParams(BaseModel):

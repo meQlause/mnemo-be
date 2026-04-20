@@ -3,8 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     GOOGLE_API_KEY: str = "placeholder"
-    GOOGLE_LLM_MODEL: str = "gemini-3-flash-preview"
-    GOOGLE_PARSE_MODEL: str = "gemini-2.5-pro"
+    GOOGLE_LLM_MODEL: str = "gemini-3.1-flash-lite-preview"
     GOOGLE_EMBEDDING_MODEL: str = "gemini-embedding-001"
 
     POSTGRES_HOST: str = "127.0.0.1"
@@ -12,17 +11,17 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = "raguser"
     POSTGRES_PASSWORD: str = "ragpassword"
     POSTGRES_DB: str = "ragdb"
-    
+
     MISTRAL_API_KEY: str = "placeholder"
     MISTRAL_PARSE_MODEL: str = "mistral-small-latest"
 
     COLLECTION_NAME: str = "rag_notes_store"
-    CHUNK_SIZE: int = 768
-    CHUNK_OVERLAP: int = 100
+    CHUNK_SIZE: int = 200
+    CHUNK_OVERLAP: int = 50
     RETRIEVER_K: int = 5
     SEMANTIC_THRESHOLD_UI: float = 0.4
-    SEMANTIC_THRESHOLD_CHAT: float = 0.3
-    WINDOW_SIZE: int = 1
+    SEMANTIC_THRESHOLD_CHAT: float = 0.25
+    WINDOW_SIZE: int = 2
 
     SECRET_KEY: str = "supersecretkey_please_change_in_production"
     ALGORITHM: str = "HS256"
